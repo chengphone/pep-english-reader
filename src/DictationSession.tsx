@@ -19,7 +19,7 @@ export default function DictationSession({words,title,repeat,onBack}:{words:Word
   let record:WordAudio|undefined
   try{audioCache.current??=readWordAudios(words.map(w=>w.english));record=(await audioCache.current).get(audioKey(words[at].english))}catch{fail('本地音频读取失败，请返回检查音频。');return}
   if(token!==run.current)return
-  if(record){objectUrl.current=URL.createObjectURL(record.blob);player.current=new Audio(objectUrl.current);setSource('本地音频 · '+record.voice)}
+  if(record){objectUrl.current=URL.createObjectURL(record.blob);player.current=new Audio(objectUrl.current);setSource(record.voice.startsWith('网站音频')?record.voice:'本地音频 · '+record.voice)}
   else if(!fallback){fail('本题缺少本地音频，请返回“管理词表”导入，或开启备用朗读。');return}
   else if(!('speechSynthesis'in window)){fail('当前浏览器没有备用语音，请导入本地音频。');return}
   else setSource('浏览器备用朗读 · 发音因设备而异')
