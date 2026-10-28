@@ -59,7 +59,7 @@ export async function readWordAudios(texts: string[]): Promise<Map<string, WordA
   } finally { db.close() }
 }
 async function loadHostedManifest() {
-  hostedManifestPromise ??= fetch(import.meta.env.BASE_URL + 'audio/library-manifest.json')
+  hostedManifestPromise ??= fetch(import.meta.env.BASE_URL + 'audio/library-manifest.json?v=2')
     .then(async response => {
       if (!response.ok) throw new Error('Hosted audio list unavailable')
       const manifest = await response.json() as HostedAudioManifest
