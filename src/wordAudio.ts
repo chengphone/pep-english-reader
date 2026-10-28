@@ -1,10 +1,11 @@
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate'
 import generator from '../tools/build_word_audio.py?raw'
 
-export type WordAudio = { key: string; text: string; blob: Blob; voice: string; updatedAt: number }
+export type WordAudio = { key: string; text: string; blob: Blob; voice: string; updatedAt: number; hostedFile?: string }
 export const audioKey = (text: string) => text.normalize('NFKC').replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim().toLowerCase()
 const MAX_FILE = 10 * 1024 * 1024
-type HostedAudioManifest = { schemaVersion: number; voice?: string; items: { text: string; file: string }[] }
+type HostedAudioManifest = { schemaVersion: number; voice?: string; items: { text: string; file: string; voice?: string }[] }
+let hostedManifestAt=0
 let hostedManifestPromise: Promise<Map<string, { file: string; voice: string }>> | undefined
 const hostedAudioPromises = new Map<string, Promise<WordAudio | undefined>>()
 function openAudioDb() {
@@ -28,29 +29,28 @@ export async function readWordAudios(texts: string[]): Promise<Map<string, WordA
       tx.onerror = () => reject(tx.error)
       tx.onabort = () => reject(tx.error)
     })
-    const missing = [...new Set(texts.map(audioKey))].filter(key => !result.has(key))
-    if (!missing.length) return result
     try {
       const hosted = await loadHostedManifest()
+      const missing=[...new Set(texts.map(audioKey))].filter(key=>{const record=result.get(key),remote=hosted.get(key);return !record||!!remote&&(!!record.hostedFile||record.voice.startsWith('网站音频'))&&record.hostedFile!==remote.file})
       const records = await Promise.all(missing.map(async key => {
         const item = hosted.get(key)
         if (!item) return undefined
-        let request = hostedAudioPromises.get(key)
+        let request = hostedAudioPromises.get(key+item.file)
         if (!request) {
           request = fetch(import.meta.env.BASE_URL + item.file).then(async response => {
             if (!response.ok) return undefined
             const blob = await response.blob()
             if (!blob.size || blob.size > MAX_FILE) return undefined
-            return { key, text: texts.find(text => audioKey(text) === key) ?? key, blob, voice: item.voice, updatedAt: Date.now() }
-          }).catch(() => undefined)
-          hostedAudioPromises.set(key, request)
+            return { key, text: texts.find(text => audioKey(text) === key) ?? key, blob, voice: item.voice, hostedFile: item.file, updatedAt: Date.now() }
+          }).catch(() => undefined).then(record=>{if(!record)hostedAudioPromises.delete(key+item.file);return record})
+          hostedAudioPromises.set(key+item.file, request)
         }
         return request
       }))
       const available = records.filter((record): record is WordAudio => !!record)
       if (available.length) {
-        await saveAudios(available)
         for (const record of available) result.set(record.key, record)
+        try{await saveAudios(available)}catch{ /* Online playback still works when local storage is full. */ }
       }
     } catch {
       // The reader can still use an explicitly imported audio or browser fallback.
@@ -59,14 +59,15 @@ export async function readWordAudios(texts: string[]): Promise<Map<string, WordA
   } finally { db.close() }
 }
 async function loadHostedManifest() {
-  hostedManifestPromise ??= fetch(import.meta.env.BASE_URL + 'audio/library-manifest.json?v=2')
+  if(Date.now()-hostedManifestAt>60000){hostedManifestPromise=undefined;hostedManifestAt=Date.now()}
+  hostedManifestPromise ??= fetch(import.meta.env.BASE_URL + 'audio/library-manifest.json?version='+Math.floor(Date.now()/60000),{cache:'no-store'})
     .then(async response => {
       if (!response.ok) throw new Error('Hosted audio list unavailable')
       const manifest = await response.json() as HostedAudioManifest
       if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.items)) throw new Error('Invalid hosted audio list')
       return new Map(manifest.items.flatMap(item => {
-        if (typeof item.text !== 'string' || !/^audio\/library\/[a-f0-9]{64}\.mp3$/i.test(item.file)) return []
-        return [[audioKey(item.text), { file: item.file, voice: `网站音频 · ${manifest.voice ?? 'Aria'}` }] as const]
+        if (typeof item.text !== 'string' || !/^audio\/library\/[a-f0-9]{64}\.(mp3|wav|m4a|ogg)$/i.test(item.file)) return []
+        return [[audioKey(item.text), { file: item.file, voice: `网站音频 · ${item.voice ?? manifest.voice ?? 'Aria'}` }] as const]
       }))
     }).catch(error => { hostedManifestPromise = undefined; throw error })
   return hostedManifestPromise
@@ -147,6 +148,7 @@ export async function importWordAudio(files: File[], texts: string[]) {
     records.push({ key, text: item.text, blob, voice: item.voice, updatedAt: Date.now() })
   }
   await saveAudios(records)
+  window.dispatchEvent(new Event('pep-materials-changed'))
   return { imported: records.length, skipped }
 }
 export function downloadFile(name: string, data: Uint8Array) {
@@ -168,11 +170,16 @@ export function exportAudioRequest(texts: string[], voice: string) {
 export async function exportWordAudio(texts: string[]) {
   const records = [...(await readWordAudios(texts)).values()]
   if (!records.length) throw new Error('当前范围没有可备份的音频。')
-  const entries: Record<string, Uint8Array> = {}, items: { text: string; file: string }[] = []
+  const entries: Record<string, Uint8Array> = {}, items: { text: string; file: string; voice?: string }[] = []
   for (const [index, record] of records.entries()) {
     const file = `audio/${index}.${record.blob.type === 'audio/wav' ? 'wav' : record.blob.type === 'audio/ogg' ? 'ogg' : record.blob.type === 'audio/mp4' ? 'm4a' : 'mp3'}`
     entries[file] = new Uint8Array(await record.blob.arrayBuffer()); items.push({ text: record.text, file })
   }
   entries['manifest.json'] = strToU8(JSON.stringify({ schemaVersion: 1, voice: '本地音频备份', items }))
   downloadFile('word-audio-backup.zip', zipSync(entries))
+}
+
+export async function listLocalWordAudios():Promise<WordAudio[]>{
+ const db=await openAudioDb()
+ try{return await new Promise((resolve,reject)=>{const request=db.transaction('audio').objectStore('audio').getAll();request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}finally{db.close()}
 }
