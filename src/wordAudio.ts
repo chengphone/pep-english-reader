@@ -4,6 +4,9 @@ import generator from '../tools/build_word_audio.py?raw'
 export type WordAudio = { key: string; text: string; blob: Blob; voice: string; updatedAt: number }
 export const audioKey = (text: string) => text.normalize('NFKC').replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim().toLowerCase()
 const MAX_FILE = 10 * 1024 * 1024
+type HostedAudioManifest = { schemaVersion: number; voice?: string; items: { text: string; file: string }[] }
+let hostedManifestPromise: Promise<Map<string, { file: string; voice: string }>> | undefined
+const hostedAudioPromises = new Map<string, Promise<WordAudio | undefined>>()
 function openAudioDb() {
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open('pep-word-audio', 1)
@@ -15,7 +18,7 @@ function openAudioDb() {
 export async function readWordAudios(texts: string[]): Promise<Map<string, WordAudio>> {
   const db = await openAudioDb()
   try {
-    return await new Promise((resolve, reject) => {
+    const result = await new Promise<Map<string, WordAudio>>((resolve, reject) => {
       const tx = db.transaction('audio'), result = new Map<string, WordAudio>()
       for (const key of new Set(texts.map(audioKey))) {
         const request = tx.objectStore('audio').get(key)
@@ -25,7 +28,48 @@ export async function readWordAudios(texts: string[]): Promise<Map<string, WordA
       tx.onerror = () => reject(tx.error)
       tx.onabort = () => reject(tx.error)
     })
+    const missing = [...new Set(texts.map(audioKey))].filter(key => !result.has(key))
+    if (!missing.length) return result
+    try {
+      const hosted = await loadHostedManifest()
+      const records = await Promise.all(missing.map(async key => {
+        const item = hosted.get(key)
+        if (!item) return undefined
+        let request = hostedAudioPromises.get(key)
+        if (!request) {
+          request = fetch(import.meta.env.BASE_URL + item.file).then(async response => {
+            if (!response.ok) return undefined
+            const blob = await response.blob()
+            if (!blob.size || blob.size > MAX_FILE) return undefined
+            return { key, text: texts.find(text => audioKey(text) === key) ?? key, blob, voice: item.voice, updatedAt: Date.now() }
+          }).catch(() => undefined)
+          hostedAudioPromises.set(key, request)
+        }
+        return request
+      }))
+      const available = records.filter((record): record is WordAudio => !!record)
+      if (available.length) {
+        await saveAudios(available)
+        for (const record of available) result.set(record.key, record)
+      }
+    } catch {
+      // The reader can still use an explicitly imported audio or browser fallback.
+    }
+    return result
   } finally { db.close() }
+}
+async function loadHostedManifest() {
+  hostedManifestPromise ??= fetch(import.meta.env.BASE_URL + 'audio/library-manifest.json')
+    .then(async response => {
+      if (!response.ok) throw new Error('Hosted audio list unavailable')
+      const manifest = await response.json() as HostedAudioManifest
+      if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.items)) throw new Error('Invalid hosted audio list')
+      return new Map(manifest.items.flatMap(item => {
+        if (typeof item.text !== 'string' || !/^audio\/library\/[a-f0-9]{64}\.mp3$/i.test(item.file)) return []
+        return [[audioKey(item.text), { file: item.file, voice: `网站音频 · ${manifest.voice ?? 'Aria'}` }] as const]
+      }))
+    }).catch(error => { hostedManifestPromise = undefined; throw error })
+  return hostedManifestPromise
 }
 async function saveAudios(records: WordAudio[]) {
   const db = await openAudioDb()

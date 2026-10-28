@@ -71,3 +71,7 @@ PDF 原文件保存在 IndexedDB，页面由 PDF.js 原样渲染；透明点读�
 底部播放栏显示选中的英文和中文释义，可编辑保存翻译。阅读发音优先级为教材包音频 → 已导入本地词句 MP3 → 浏览器英文朗读。支持暂停继续、循环、调速及整页顺序朗读，翻页或离开阅读页会停止队列。浏览器朗读不保证所有设备都能离线使用。
 
 在线阅读仍嵌入 E63，外层可切换教材、重试、专注阅读、全屏或新窗口打开；课本内部的点读、翻页、目录由 E63 控制。在线资源是否可用取决于网络和原站。本地阅读不依赖 E63。检查页面尺寸逻辑：`npm run test:reader`。
+
+### GitHub Pages
+
+This app is published as a static site under `/pep-english-reader/`. The Pages workflow builds `dist` on each push to `main`. The public `public/audio/library-manifest.json` and `public/audio/library/` host the 156 user-provided practice MP3s; the reader fetches and saves matching audio locally on first use, so students do not need to import that audio ZIP. Their textbooks and learning progress remain on each device. No custom domain is configured.
