@@ -17,6 +17,25 @@ async function write(operation:(store:IDBObjectStore)=>void) {
 export const saveUnit=(unit:VocabularyUnit)=>write(store=>store.put(unit))
 export const deleteUnit=(id:string)=>write(store=>store.delete(id))
 
+export async function seedHostedVocabulary(){
+ const marker='pep-hosted-vocabulary-v1'
+ if(localStorage.getItem(marker))return loadUnits()
+ try{
+  const response=await fetch(import.meta.env.BASE_URL+'data/default-vocabulary.json')
+  if(!response.ok)throw new Error('Hosted practice vocabulary unavailable')
+  const data=await response.json() as {schemaVersion:number;units:VocabularyUnit[]}
+  if(data.schemaVersion!==1||!Array.isArray(data.units))throw new Error('Invalid hosted practice vocabulary')
+  const existing=await loadUnits()
+  const have=new Set(existing.map(unit=>JSON.stringify([unit.book,unit.category??'units',unit.title])))
+  for(const unit of data.units){
+   const identity=JSON.stringify([unit.book,unit.category??'units',unit.title])
+   if(!have.has(identity)){await saveUnit(unit);have.add(identity)}
+  }
+  localStorage.setItem(marker,'1')
+ }catch(error){console.warn('Hosted vocabulary seed deferred until next visit',error)}
+ return loadUnits()
+}
+
 // Names are display metadata. Keep stable unit/book/word IDs so audio and progress survive.
 export async function renameMaterialBook(oldName:string,newName:string,bookId?:string){
  const name=newName.trim();if(!name)throw new Error('名称不能为空。')

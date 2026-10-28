@@ -10,7 +10,7 @@ import WordEditor from './WordEditor'
 import RenameDialog from './RenameDialog'
 import { invalidateTranslationGlossary } from './automaticTranslation'
 import { extractVocabularyAppendix, parseVocabularyAppendix, persistAppendixUnits, type VocabularyUnit, type VocabularyWord } from './vocabularyExtraction'
-import { deleteUnit, loadUnits, saveUnit, renameMaterialBook, renameMaterialUnit } from './vocabularyStorage'
+import { deleteUnit, loadUnits, saveUnit, renameMaterialBook, renameMaterialUnit, seedHostedVocabulary } from './vocabularyStorage'
 
 type ManageTab='import'|'edit'|'audio'
 const categories=[['units','单元单词'],['vocabulary','整册词汇'],['expressions','常用表达']] as const
@@ -39,7 +39,7 @@ export default function VocabularyStudio({onBack}:{onBack:()=>void}) {
  const available=units.filter(unit=>unit.book===book&&(unit.category??'units')===category).sort((a,b)=>a.title.localeCompare(b.title,'zh-CN',{numeric:true}))
  const active=units.find(unit=>unit.id===activeId)
  const editorDirty=active?unitTitle!==active.title||JSON.stringify(words)!==JSON.stringify(active.words):words.some(word=>word.english.trim())
- useEffect(()=>{let live=true;void loadUnits().then(items=>{if(!live)return;setUnits(items);const first=items.find(unit=>(unit.category??'units')==='units')??items[0];if(first){setBook(first.book);setImportBook(first.book);setCategory(first.category??'units');setActiveId(first.id);setUnitTitle(first.title);setWords(first.words)}}).catch(()=>{if(live)setNotice('本地词表读取失败，请检查浏览器存储权限。')});return()=>{live=false}},[])
+ useEffect(()=>{let live=true;void seedHostedVocabulary().then(items=>{if(!live)return;setUnits(items);const first=items.find(unit=>(unit.category??'units')==='units')??items[0];if(first){setBook(first.book);setImportBook(first.book);setCategory(first.category??'units');setActiveId(first.id);setUnitTitle(first.title);setWords(first.words)}}).catch(()=>{if(live)setNotice('本地词表读取失败，请检查浏览器存储权限。')});return()=>{live=false}},[])
  function selectUnit(unit:VocabularyUnit){setActiveId(unit.id);setBook(unit.book);setCategory(unit.category??'units');setUnitTitle(unit.title);setWords(unit.words)}
  function selectContext(nextBook:string,nextCategory:ImageCategory){setBook(nextBook);setCategory(nextCategory);const unit=units.find(unit=>unit.book===nextBook&&(unit.category??'units')===nextCategory);if(unit)selectUnit(unit);else{setActiveId('');setUnitTitle('Unit 1');setWords([])}}
  function navigate(next:'practice'|'manage'){if(next==='manage'&&page==='practice'&&!editorDirty&&!draft.length&&practiceContext.book){const unit=units.find(unit=>unit.id===practiceContext.unitId);if(unit)selectUnit(unit);else selectContext(practiceContext.book,practiceContext.category as ImageCategory);setImportBook(practiceContext.book)}setPage(next);setNotice('')}
