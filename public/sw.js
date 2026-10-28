@@ -1,0 +1,19 @@
+const CACHE = 'pep-reader-shell-v3-word-audio'
+// Filled with hashed build assets by tools/build-sw.mjs.
+const PRECACHE = []
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['/', '/index.html', '/icon.svg', '/manifest.webmanifest', ...PRECACHE])))
+  self.skipWaiting()
+})
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))))
+  self.clients.claim()
+})
+self.addEventListener('fetch', event => {
+  const request = event.request
+  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return
+  event.respondWith(caches.match(request, { ignoreVary: true }).then(cached => cached || fetch(request).then(response => {
+    if (response.ok) event.waitUntil(caches.open(CACHE).then(cache => cache.put(request, response.clone())))
+    return response
+  }).catch(() => request.mode === 'navigate' ? caches.match('/index.html') : Response.error())))
+})

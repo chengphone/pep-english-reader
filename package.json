@@ -1,0 +1,37 @@
+{
+  "name": "english-textbook-reader",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build && node tools/build-sw.mjs",
+    "demo:build": "node tools/create-demo-book.mjs",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "predev": "node tools/sync-pdf-assets.mjs",
+    "prebuild": "node tools/sync-pdf-assets.mjs",
+    "test:hotspots": "node tools/test-hotspots.mjs",
+    "test:expressions": "node tools/test-expressions.mjs",
+    "test:selection": "node tools/test-dictation-selection.mjs",
+    "test:vocabulary": "node tools/test-vocabulary.mjs",
+    "test:reader": "node tools/test-reader-layout.mjs"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "lucide-react": "^1.62.0",
+    "pdfjs-dist": "^6.4.299",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "oxlint": "^1.89.0",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.5"
+  }
+}

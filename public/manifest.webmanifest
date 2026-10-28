@@ -1,0 +1,10 @@
+{
+  "name": "英语课本点读 · 人教 PEP",
+  "short_name": "PEP 点读",
+  "description": "人教 PEP 小学英语课本点读与离线阅读",
+  "theme_color": "#176b50",
+  "background_color": "#f7f9f7",
+  "display": "standalone",
+  "start_url": "/",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
