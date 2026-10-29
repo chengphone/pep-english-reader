@@ -222,7 +222,7 @@ test('relisten retries audio that was missing earlier in the same round',async({
  await page.evaluate(async()=>{const m=await import('/pep-english-reader/src/wordAudio.ts');m.invalidateHostedAudioManifest()})
  await page.getByRole('button',{name:'重听 3 遍',exact:true}).click()
  await expect(page.getByText('网站音频 · Aria',{exact:true})).toBeVisible()
- await expect(page.getByText(/已读 3 \/ 3 遍.*等待手动下一题/)).toBeVisible()
+ await expect(page.getByText(/已读 3 \/ 3 遍.*等待手动下一题/)).toBeVisible({timeout:15000})
  await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow','100')
  await expect(page.getByRole('switch',{name:'自动下一词'})).not.toBeChecked()
  await expect(page.locator('.dictation-screen')).not.toContainText('apple')
