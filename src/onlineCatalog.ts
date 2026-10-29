@@ -10,9 +10,6 @@ export const ONLINE_BOOKS: OnlineBook[] = [
   {id:'tape8a_002021',grade:8,term:'a',edition:'人教版初中'},{id:'286',grade:8,term:'a',edition:'人教老版'},
   {id:'tape8b_002021',grade:8,term:'b',edition:'人教版初中'},{id:'287',grade:8,term:'b',edition:'人教老版'},
   {id:'tape9a_002020',grade:9,term:'a',edition:'人教版初中'},
-  {id:'tape4a_038001',grade:4,term:'a',edition:'人教大同版'},
-  {id:'tape4b_038001',grade:4,term:'b',edition:'人教大同版'},
-  {id:'tape5a_038001',grade:5,term:'a',edition:'人教大同版'},
   {id:'tape6a_002015',grade:6,term:'a',edition:'人教PEP新版'},
 ]
 
