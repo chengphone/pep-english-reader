@@ -1,5 +1,12 @@
 import {test,expect} from '@playwright/test'
 
+test('custom question count keeps an editable numeric draft',async({page})=>{
+ await page.goto('./');await page.getByRole('button',{name:'单元默写',exact:true}).click();await page.getByRole('button',{name:'数量与播放设置'}).click()
+ const all=page.getByRole('radio',{name:'全部',exact:true}),custom=page.getByRole('radio',{name:'自定义',exact:true}),input=page.getByRole('spinbutton',{name:'听写数量',exact:true})
+ await custom.check();await input.fill('12');await expect(input).toHaveValue('12');await input.press('Backspace');await expect(input).toHaveValue('1');await input.press('Backspace');await expect(input).toHaveValue('');await input.fill('3');await expect(input).toHaveValue('3');await expect(all).not.toBeChecked()
+ await input.fill('');await input.press('Tab');await expect(input).toHaveValue('1');await expect(all).not.toBeChecked()
+})
+
 test('marking answers and replay actions operate on the same round snapshot',async({page})=>{
  await page.route('**/audio/library-manifest.json*',route=>route.fulfill({json:{schemaVersion:1,items:[]}}))
  await page.addInitScript(()=>{const open=indexedDB.open.bind(indexedDB);indexedDB.open=function(name,...args){if(name==='pep-word-audio')throw new DOMException('blocked','SecurityError');return open(name,...args)}})
