@@ -5,6 +5,7 @@ const {units}=JSON.parse(await fs.readFile(new URL('../public/data/default-vocab
 const {items}=JSON.parse(await fs.readFile(new URL('../public/audio/library-manifest.json',import.meta.url)))
 const groups=units.filter(u=>u.id.startsWith('e63-6a-002015-'))
 assert.equal(groups.length,12)
+assert(!units.some(u=>u.book==='6年级英语上册'),'The retired six-grade edition must not reappear')
 const wordCounts=[26,25,20,17,29,27],expressionCounts=[9,10,9,6,9,11]
 const audios=new Map(items.map(item=>[audioKey(item.text),item]))
 for(const [category,counts] of [['units',wordCounts],['expressions',expressionCounts]]){

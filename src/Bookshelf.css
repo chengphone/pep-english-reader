@@ -7,3 +7,5 @@
 @media(max-width:560px){.kids-header nav{position:static;left:auto;transform:none}}
 /* Online-only home: keep local book management in storage while removing it from the student's landing page. */
 .online-only .kids-local,.online-only .kids-manage,.online-only .kids-welcome .kids-import,.online-only .kids-welcome .kids-file,.online-only .kids-management{display:none!important}.online-only .kids-online{margin-top:0}
+
+.kids-online-book.is-unavailable{cursor:default;background:#f5f7f5}.kids-online-book.is-unavailable .kids-book-cover{opacity:.55}.kids-online-book.is-unavailable .kids-open-book{background:#e4eae6;color:#5f7065}

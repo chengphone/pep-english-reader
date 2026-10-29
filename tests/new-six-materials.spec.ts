@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test'
+import fs from 'node:fs/promises'
 const book='六年级英语上册 · PEP新版（E63 002015）'
 test('new PEP vocabulary and expressions are selectable and play hosted audio without an upload',async({page,context})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
@@ -24,4 +25,24 @@ test('new PEP vocabulary and expressions are selectable and play hosted audio wi
  await expect(page.getByText(/已读 1 \/ 1 遍.*等待手动下一题/)).toBeVisible({timeout:15000})
  await expect(page.locator('.dictation-audio-source')).toContainText('网站音频')
  expect(errors).toEqual([])
+})
+
+
+test('a website update removes cached old-sixth-grade defaults while retaining the new edition',async({page})=>{
+ const data=JSON.parse(await fs.readFile(new URL('../public/data/default-vocabulary.json',import.meta.url),'utf8'))
+ const old={id:'retired-sixth-unit',book:'6年级英语上册',title:'Unit 1',category:'units',words:[{id:'old-museum',english:'museum',meaning:'博物馆'}]}
+ let retired=false
+ await page.route('**/data/default-vocabulary.json*',route=>route.fulfill({json:{...data,revision:data.revision+(retired?1:0),units:retired?data.units:[...data.units,old]}}))
+ await page.goto('./');await page.getByRole('button',{name:'单元默写',exact:true}).click()
+ await page.getByRole('combobox',{name:'选择课本',exact:true}).selectOption(old.book)
+ await expect(page.getByRole('checkbox',{name:'听写 museum',exact:true})).toBeVisible()
+ retired=true;await page.getByRole('button',{name:'资料管理',exact:true}).click();await page.getByRole('button',{name:'检查网站更新',exact:true}).click()
+ await expect(page.getByText('已检查网站词表和音频更新；离线时使用本机资料。',{exact:true})).toBeVisible()
+ await page.getByRole('tab',{name:'听写练习',exact:true}).click()
+ const options=await page.getByRole('combobox',{name:'选择课本',exact:true}).locator('option').allTextContents()
+ expect(options).not.toContain(old.book);expect(options).toContain(book)
+ await page.getByRole('combobox',{name:'选择课本',exact:true}).selectOption(book)
+ await page.getByRole('button',{name:'Unit 1',exact:true}).click();await expect(page.locator('.practice-word-row')).toHaveCount(26)
+ await page.reload();await page.getByRole('button',{name:'单元默写',exact:true}).click()
+ expect(await page.getByRole('combobox',{name:'选择课本',exact:true}).locator('option').allTextContents()).not.toContain(old.book)
 })
