@@ -6,3 +6,6 @@
 
 .reading-mode>.toast{top:150px;bottom:auto;pointer-events:none}
 @media(max-width:600px){.reading-mode>.toast{top:200px;max-width:calc(100% - 28px);font-size:12px;line-height:1.6}}
+
+/* E63 uses a 50px top bar and a 36px back button at x=8px. The cross-origin frame cannot be styled from here. */
+.online-reader-back-shield{position:absolute;top:0;left:0;width:52px;height:50px;background:#4aa3ff;z-index:1;touch-action:none;user-select:none}

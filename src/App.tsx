@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { X } from 'lucide-react'
 import './App.css'
 import Bookshelf from './Bookshelf'
+import { appUpdateReady, subscribeAppUpdates, reloadUpdatedApp } from './appUpdates'
 import { renameMaterialBook } from './vocabularyStorage'
 import { buildTextHotspots, buildOcrHotspots, HOTSPOT_VERSION } from './hotspotExtraction'
 import { automaticallyTranslate, invalidateTranslationGlossary, type TranslationResult } from './automaticTranslation'
@@ -26,10 +27,13 @@ async function putBook(book: LocalBook) { const db = await dbOpen(); await new P
 async function dropBook(id: string) { const db = await dbOpen(); await new Promise<void>((resolve, reject) => { const tx = db.transaction('books', 'readwrite'); tx.objectStore('books').delete(id); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error) }); db.close() }
 
 export default function App() {
+  const updateReady=useSyncExternalStore(subscribeAppUpdates,appUpdateReady)
+
   const [books, setBooks] = useState<LocalBook[]>([]), [active, setActive] = useState<LocalBook | null>(null), [online, setOnline] = useState(false), [mode,setMode]=useState<'shelf'|'vocab'>('shelf')
   const [pageIdx, setPageIdx] = useState(0), [selected, setSelected] = useState<Item | null>(null)
   const [repeat, setRepeat] = useState(1), [speed, setSpeed] = useState(1), [message, setMessage] = useState(''), [help, setHelp] = useState(false)
   const [onlineId, setOnlineId] = useState('tape5a_002113')
+  useEffect(()=>{if(updateReady&&mode==='shelf'&&!active&&!online&&!help)reloadUpdatedApp()},[updateReady,mode,active,online,help])
   const playback=useReaderPlayback(active,setSelected,repeat,speed)
   const stop=playback.stop
   const page = active?.manifest.pages[pageIdx]
@@ -66,6 +70,7 @@ export default function App() {
   return <div className={`app-shell ${mode==='shelf'&&(active||online)?'reading-mode':'shelf-mode'}`}>
     <main className="main-area">{mode==='vocab'?<VocabularyStudio onBack={backToShelf}/>:online?<OnlineReader key="online-reader" catalog={ONLINE_BOOKS} selectedId={onlineId} onBook={setOnlineId} onBack={backToShelf} onDictation={openDictation}/>:active?<LocalReader key={active.id} book={active} pageIndex={pageIdx} imageSrc={img} selected={selected} translation={translated} translating={translating} translationMessage={autoTranslation.message} repeat={repeat} speed={speed} playback={playback} onPage={goPage} onRepeat={setRepeat} onSpeed={setSpeed} onBack={backToShelf} onDictation={openDictation} onSaveTranslation={saveTranslation}/>:<Bookshelf pendingCatalog={PENDING_ONLINE_BOOKS} books={books.map(book=>({id:book.id,title:book.manifest.title,pages:book.manifest.pages.length,lastPage:book.lastPage??0}))} catalog={ONLINE_BOOKS} onRename={renameBook} onRead={id=>{const book=books.find(book=>book.id===id);if(book)openBook(book)}} onOnline={id=>{stop();setSelected(null);setActive(null);setOnlineId(id);setOnline(true)}} onImport={importFile} onRemove={async id=>{const book=books.find(book=>book.id===id);if(book)await remove(book)}} onDictation={openDictation} onDemo={()=>void tryDemo()} onHelp={()=>setHelp(true)}/>}</main>
     {help&&<div className="modal-shade" onClick={()=>setHelp(false)}><section className="help-modal" onClick={e=>e.stopPropagation()}><button className="modal-x" onClick={()=>setHelp(false)}><X/></button><span className="edition">LOCAL BOOK PACKAGE</span><h2>教材包格式</h2><p>ZIP 根目录放置 <code>book.json</code>，并包含页面图片和音频文件。热区坐标为 0～1 的页面比例。</p><pre>{'{\n  "schemaVersion": 1,\n  "bookId": "pep-g5-a",\n  "title": "人教 PEP 五年级上册",\n  "publisherId": "pep",\n  "grade": 5, "term": "a",\n  "pages": [{\n    "page": 1, "image": "pages/001.webp",\n    "items": [{ "id": "p001_s001",\n      "text": "Good morning!", "order": 1,\n      "rects": [[0.1,0.2,0.8,0.3]],\n      "audio": "audio/p001_s001.mp3" }]\n  }]\n}'}</pre><button className="primary-button" onClick={()=>setHelp(false)}>知道了</button></section></div>}
+    {updateReady&&<button className="app-update-notice" onClick={reloadUpdatedApp}>新版已就绪，点击刷新应用</button>}
     {message&&<div className="toast"><i/>{message}</div>}
   </div>
 }

@@ -24,20 +24,21 @@ self.addEventListener('fetch', event => {
     // Cache failures must not turn a successful online request into an offline error.
     const cache = await caches.open(CACHE).catch(() => undefined)
     const metadata = [BASE + 'data/default-vocabulary.json', BASE + 'audio/library-manifest.json'].includes(url.pathname)
-    const key = metadata ? url.origin + url.pathname : request
-    if (!metadata) {
+    const navigation = request.mode === 'navigate'
+    const key = metadata ? url.origin + url.pathname : navigation ? url.origin + BASE + 'index.html' : request
+    if (!metadata && !navigation) {
       const cached = await cache?.match(key).catch(() => undefined)
       if (cached) return cached
     }
     try {
       const response = await fetch(request)
-      if (metadata && !response.ok) throw new Error('metadata unavailable')
+      if ((metadata || navigation) && !response.ok) throw new Error('metadata unavailable')
       if (response.status === 200 && response.type !== 'opaque') {
         await cache?.put(key, response.clone()).catch(() => {})
       }
       return response
     } catch {
-      return (await cache?.match(metadata ? key : request.mode === 'navigate' ? BASE + 'index.html' : key).catch(() => undefined)) || Response.error()
+      return (await cache?.match(key).catch(() => undefined)) || Response.error()
     }
   })())
 })
