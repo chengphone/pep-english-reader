@@ -7,10 +7,10 @@ test.beforeEach(async({page})=>{const list:string[]=[];errors.set(page,list);pag
 test.afterEach(async({page})=>expect(errors.get(page)).toEqual([]))
 async function choose(page:Page){
  await page.getByRole('button',{name:'单元默写',exact:true}).click();await page.getByRole('combobox',{name:'选择课本',exact:true}).selectOption('3年级英语上册')
- await page.getByRole('button',{name:'Unit 1',exact:true}).click();await page.getByRole('button',{name:'清空',exact:true}).click();await page.getByRole('checkbox',{name:'听写 name',exact:true}).check()
+ await page.getByRole('button',{name:'Unit 1',exact:true}).click();await page.getByRole('button',{name:/选择词句/}).click();await page.getByRole('button',{name:'清空本单元',exact:true}).click();await page.getByRole('checkbox',{name:'听写 name',exact:true}).check()
  await page.getByRole('combobox',{name:'每题播放次数'}).selectOption('1')
 }
-async function start(page:Page){await page.getByRole('button',{name:'开始听写',exact:true}).first().click()}
+async function start(page:Page){await page.getByRole('button',{name:'检查声音并开始',exact:true}).click();await page.getByRole('button',{name:'开始听写',exact:true}).first().click()}
 test('textbook recordings override old imported TTS, cache offline, and never synthesize missing originals',async({page,context})=>{
  test.setTimeout(60000)
  await page.evaluate(async()=>{
@@ -22,12 +22,13 @@ test('textbook recordings override old imported TTS, cache offline, and never sy
  await choose(page);await start(page)
  await expect(page.getByText(/已读 1 \/ 1 遍.*等待手动下一题/)).toBeVisible({timeout:15000})
  await expect(page.locator('.dictation-audio-source')).toHaveText('网站音频 · 教材原音')
- await expect(page.getByRole('checkbox',{name:'缺少音频时允许浏览器备用朗读'})).toBeDisabled()
- await page.getByRole('button',{name:'返回词表',exact:true}).click();await context.setOffline(true);await start(page)
+ await expect(page.locator('.dictation-screen')).not.toContainText('备用朗读')
+ await page.getByRole('button',{name:'返回词表',exact:true}).click();await context.setOffline(true);await page.getByRole('button',{name:'检查声音并开始',exact:true}).click();await page.getByRole('button',{name:'开始听写',exact:true}).first().click()
  await expect(page.getByText(/已读 1 \/ 1 遍.*等待手动下一题/)).toBeVisible({timeout:15000})
  await page.getByRole('button',{name:'返回词表',exact:true}).click()
+ await page.route('**/'+original.audio.file,route=>route.abort())
  await page.evaluate(()=>new Promise<void>((resolve,reject)=>{const r=indexedDB.deleteDatabase('pep-textbook-audio');r.onsuccess=()=>resolve();r.onerror=()=>reject(r.error)}))
- await start(page);await expect(page.getByText(/本题教材原音未能加载/)).toBeVisible()
+ await page.getByRole('button',{name:'检查声音并开始',exact:true}).click();await expect(page.getByText(/教材原音缺失或无法验证/)).toBeVisible();await expect(page.getByRole('button',{name:'开始听写',exact:true}).first()).toBeDisabled()
  expect(await page.evaluate(()=>(window as any).__ttsCalls)).toBe(0)
  const stillImported=await page.evaluate(async()=>{const m=await import('/pep-english-reader/src/wordAudio.ts');return (await m.listLocalWordAudios()).find((a:any)=>a.key==='name')?.voice})
  expect(stillImported).toBe('Aria TTS previously imported')

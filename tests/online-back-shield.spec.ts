@@ -10,7 +10,11 @@ test('the embedded back arrow is shielded on desktop, mobile, focus mode and ful
   await frame.locator('#share').click();await expect(frame.locator('body')).toHaveAttribute('data-share','clicked')
  }
  await check();await page.getByRole('button',{name:'专注阅读',exact:true}).click();await check()
- await page.getByRole('button',{name:'全屏阅读',exact:true}).click();await expect(page.locator('.online-reading')).toHaveClass(/reading-expanded/);await check()
- await page.getByRole('button',{name:'退出全屏',exact:true}).click();await page.setViewportSize({width:390,height:844});await check()
+ await page.getByRole('button',{name:'退出专注',exact:true}).click()
+ await page.getByRole('button',{name:'更多阅读操作'}).click();await expect(page.getByRole('menu')).toBeVisible()
+ await page.getByRole('menuitem',{name:'全屏阅读'}).click();await expect(page.locator('.online-reading')).toHaveClass(/reading-expanded/);await check()
+ await page.getByRole('button',{name:'更多阅读操作'}).click();await page.getByRole('menuitem',{name:'退出全屏'}).click()
+ await page.setViewportSize({width:390,height:844});await check()
+ await page.getByRole('button',{name:'更多阅读操作'}).click();await page.locator('.online-reader-menu').dispatchEvent('keydown',{key:'Escape'});await expect(page.getByRole('menu')).toHaveCount(0);await expect(page.getByRole('button',{name:'更多阅读操作'})).toBeFocused()
  await page.screenshot({path:'/tmp/pep-audit-20261029/online-back-shield-mobile.png',fullPage:true})
 })

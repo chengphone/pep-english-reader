@@ -63,6 +63,12 @@ export async function readMaterialAudios(words:AudioWord[]):Promise<Map<string,W
  await Promise.all(Array.from({length:Math.min(4,bound.length)},async()=>{while(next<bound.length){const word=bound[next++],record=await original(word);if(record)result.set(record.key,record)}}))
  return result
 }
+export async function resolveDictationAudios(words:AudioWord[]):Promise<(WordAudio|undefined)[]>{
+ const result:Array<WordAudio|undefined>=new Array(words.length)
+ let next=0
+ await Promise.all(Array.from({length:Math.min(4,words.length)},async()=>{while(next<words.length){const index=next++,word=words[index];if(word.audio){result[index]=await original(word);continue}result[index]=(await readWordAudios([word.english])).get(audioKey(word.english))}}))
+ return result
+}
 export async function exportMaterialAudio(words:AudioWord[]){
  const records=[...(await readMaterialAudios(words)).values()]
  if(!records.length)throw new Error('当前范围没有可备份的音频。')

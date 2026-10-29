@@ -87,8 +87,11 @@ test('the visible local reader can pause loading audio and clears it on page nav
  await page.getByRole('button',{name:'停止朗读',exact:true}).click()
  await expect(page.getByRole('button',{name:'播放选中句子',exact:true})).toBeEnabled()
  await page.setViewportSize({width:390,height:844});await expect(page.getByRole('button',{name:'播放 B',exact:true})).toBeVisible()
+ await expect(page.getByRole('button',{name:'阅读设置'})).toBeVisible();await expect(page.getByLabel('页面适应方式')).toBeHidden()
+ await page.getByRole('button',{name:'阅读设置'}).click();await page.getByRole('button',{name:'点读区域'}).click();await page.getByRole('button',{name:'收起阅读设置'}).click();await expect(page.getByRole('button',{name:'点读区域'})).toBeHidden()
+ await page.getByRole('button',{name:'音频设置'}).click();await expect(page.getByLabel('语速')).toBeVisible();await page.getByLabel('语速').selectOption('1.25');await page.getByRole('button',{name:'收起音频设置'}).click()
  await page.screenshot({path:'/tmp/pep-audit-20261029/playback-reader-mobile.png',fullPage:true})
- await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'/tmp/pep-audit-20261029/playback-reader-desktop.png',fullPage:true})
+ await page.setViewportSize({width:1440,height:1000});await expect(page.getByLabel('页面适应方式')).toBeVisible();await expect(page.getByLabel('语速')).toBeVisible();await page.screenshot({path:'/tmp/pep-audit-20261029/playback-reader-desktop.png',fullPage:true})
 })
 test('speech fallback remains paused when its start event arrives late',async({page})=>{
  await page.route('**/audio/library-manifest.json*',route=>route.fulfill({json:{schemaVersion:1,items:[]}}))
