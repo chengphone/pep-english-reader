@@ -75,3 +75,12 @@ PDF 原文件保存在 IndexedDB，页面由 PDF.js 原样渲染；透明点读�
 ### GitHub Pages
 
 This app is published as a static site under `/pep-english-reader/`. The Pages workflow builds `dist` on each push to `main`. The public `public/audio/library-manifest.json` and `public/audio/library/` host the 156 user-provided practice MP3s; the reader fetches and saves matching audio locally on first use, so students do not need to import that audio ZIP. Their textbooks and learning progress remain on each device. No custom domain is configured.
+
+### 回归测试
+
+- `npm test`：热点、词表、常用表达、抽题、页面尺寸和共享数据不变量检查；还会核对已托管音频的文件路径及 SHA-256。
+- `npm run test:e2e -- --project=chromium`：用本机 Chrome 运行浏览器回归。首次使用其他浏览器前运行 `npx playwright install firefox webkit`，然后可用 `npm run test:e2e` 运行全部浏览器。
+- 浏览器测试使用隔离存储和模拟 GitHub 接口，不会发布测试资料或读写真实用户浏览器。
+- GitHub Pages 部署前必须通过基础检查与 Chromium 回归；代码变更还会触发 Firefox/WebKit 回归。
+
+当前全面边缘场景审查仍在进行中。通过已有测试不代表全部设备和所有边缘场景已经完成验证。

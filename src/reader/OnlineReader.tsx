@@ -4,7 +4,8 @@ import ReaderHeader from './ReaderHeader'
 import { useReadingFullscreen } from './useReadingFullscreen'
 import type { OnlineBook } from './types'
 import './Reader.css'
-const label=(book:OnlineBook)=>`人教 ${book.grade<=6?'PEP ':''}${book.grade}年级${book.term==='a'?'上':'下'}册${book.edition?' · '+book.edition:''}`
+import { onlineBookLabel as label } from '../onlineCatalog'
+
 export default function OnlineReader({catalog,selectedId,onBook,onBack,onDictation}:{catalog:OnlineBook[];selectedId:string;onBook:(id:string)=>void;onBack:()=>void;onDictation:()=>void}) {
  const fullscreen=useReadingFullscreen(),[focus,setFocus]=useState(false),[reload,setReload]=useState(0),[loading,setLoading]=useState(true),[slow,setSlow]=useState(false),[offline,setOffline]=useState(!navigator.onLine)
  const selected=catalog.find(book=>book.id===selectedId)??catalog[0],url=`https://dd.e63.cn/reader.html?book=${encodeURIComponent(selected.id)}`

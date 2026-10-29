@@ -10,21 +10,12 @@ import VocabularyStudio from './VocabularyStudio'
 import LocalReader from './reader/LocalReader'
 import OnlineReader from './reader/OnlineReader'
 import { useReaderPlayback } from './reader/useReaderPlayback'
-import type { ReaderItem as Item, ReaderPage as Page, ReaderManifest as Manifest, LocalBook, OnlineBook } from './reader/types'
+import type { ReaderItem as Item, ReaderPage as Page, ReaderManifest as Manifest, LocalBook } from './reader/types'
+
+import { ONLINE_BOOKS } from './onlineCatalog'
 
 const DB_NAME = 'pep-reader-v1'
-const ONLINE_BOOKS: OnlineBook[] = [
-  {id:'tape3a_002013',grade:3,term:'a'},{id:'tape3b_002013',grade:3,term:'b'},
-  {id:'tape4a_002013',grade:4,term:'a'},{id:'tape4b_002013',grade:4,term:'b'},
-  {id:'tape5a_002003',grade:5,term:'a',edition:'人教PEP版'}, {id:'tape5a_002113',grade:5,term:'a',edition:'新课标版'},
-  {id:'tape5b_002006',grade:5,term:'b',edition:'人教PEP版'}, {id:'tape5b_002113',grade:5,term:'b',edition:'新课标版'},
-  {id:'tape6a_002003',grade:6,term:'a'},{id:'tape6b_002006',grade:6,term:'b'},
-  {id:'tape7a_002021',grade:7,term:'a',edition:'人教版初中'},{id:'284',grade:7,term:'a',edition:'人教老版'},
-  {id:'tape7b_002021',grade:7,term:'b',edition:'人教版初中'},{id:'285',grade:7,term:'b',edition:'人教老版'},
-  {id:'tape8a_002021',grade:8,term:'a',edition:'人教版初中'},{id:'286',grade:8,term:'a',edition:'人教老版'},
-  {id:'tape8b_002021',grade:8,term:'b',edition:'人教版初中'},{id:'287',grade:8,term:'b',edition:'人教老版'},
-  {id:'tape9a_002020',grade:9,term:'a',edition:'人教版初中'},
-]
+
 const objectUrls = new Map<string, string>()
 function assetUrl(book: LocalBook | null, path?: string) { if (!book || !path) return ''; const blob = book.assets[path]; if (!blob) return path; const key = `${book.id}:${path}`; if (!objectUrls.has(key)) objectUrls.set(key, URL.createObjectURL(blob)); return objectUrls.get(key)! }
 

@@ -1,13 +1,22 @@
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate'
 import generator from '../tools/build_word_audio.py?raw'
 
-export type WordAudio = { key: string; text: string; blob: Blob; voice: string; updatedAt: number; hostedFile?: string }
-export const audioKey = (text: string) => text.normalize('NFKC').replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim().toLowerCase()
+export type WordAudio = { key: string; text: string; blob: Blob; voice: string; updatedAt: number; hostedFile?: string; baseHostedFile?: string | null }
+export { audioKey } from './audioKey'
+import { audioKey } from './audioKey'
 const MAX_FILE = 10 * 1024 * 1024
 type HostedAudioManifest = { schemaVersion: number; voice?: string; items: { text: string; file: string; voice?: string }[] }
 let hostedManifestAt=0
 let hostedManifestPromise: Promise<Map<string, { file: string; voice: string }>> | undefined
 const hostedAudioPromises = new Map<string, Promise<WordAudio | undefined>>()
+type StoredWordAudio=Omit<WordAudio,'blob'> & {bytes?:ArrayBuffer;mime?:string;blob?:Blob}
+function restoreAudio(value:StoredWordAudio|undefined):WordAudio|undefined{
+ if(!value||typeof value.key!=='string'||typeof value.text!=='string'||value.key!==audioKey(value.text)||typeof value.voice!=='string'||!Number.isFinite(value.updatedAt))return
+ const blob=value.blob instanceof Blob?value.blob:value.bytes instanceof ArrayBuffer?new Blob([value.bytes],{type:value.mime??'audio/mpeg'}):undefined
+ if(!blob?.size)return
+ const {bytes:_bytes,mime:_mime,blob:_blob,...metadata}=value
+ return {...metadata,blob}
+}
 function openAudioDb() {
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open('pep-word-audio', 1)
@@ -17,18 +26,24 @@ function openAudioDb() {
   })
 }
 export async function readWordAudios(texts: string[]): Promise<Map<string, WordAudio>> {
-  const db = await openAudioDb()
-  try {
-    const result = await new Promise<Map<string, WordAudio>>((resolve, reject) => {
-      const tx = db.transaction('audio'), result = new Map<string, WordAudio>()
-      for (const key of new Set(texts.map(audioKey))) {
-        const request = tx.objectStore('audio').get(key)
-        request.onsuccess = () => { if (request.result) result.set(key, request.result) }
-      }
-      tx.oncomplete = () => resolve(result)
-      tx.onerror = () => reject(tx.error)
-      tx.onabort = () => reject(tx.error)
-    })
+  let result=new Map<string,WordAudio>()
+  try{
+    const db=await openAudioDb()
+    try{
+      result=await new Promise<Map<string,WordAudio>>((resolve,reject)=>{
+        const tx=db.transaction('audio'),found=new Map<string,WordAudio>()
+        for(const key of new Set(texts.map(audioKey))){
+          const request=tx.objectStore('audio').get(key)
+          request.onsuccess=()=>{const record=restoreAudio(request.result);if(record)found.set(key,record)}
+        }
+        tx.oncomplete=()=>resolve(found)
+        tx.onerror=()=>reject(tx.error??new Error('本地音频读取失败。'))
+        tx.onabort=()=>reject(tx.error??new Error('本地音频读取中止。'))
+      })
+    }finally{db.close()}
+  }catch{
+    // Storage may be blocked or full; hosted audio must remain playable online.
+  }
     try {
       const hosted = await loadHostedManifest()
       const missing=[...new Set(texts.map(audioKey))].filter(key=>{const record=result.get(key),remote=hosted.get(key);return !record||!!remote&&(!!record.hostedFile||record.voice.startsWith('网站音频'))&&record.hostedFile!==remote.file})
@@ -42,7 +57,7 @@ export async function readWordAudios(texts: string[]): Promise<Map<string, WordA
             const blob = await response.blob()
             if (!blob.size || blob.size > MAX_FILE) return undefined
             return { key, text: texts.find(text => audioKey(text) === key) ?? key, blob, voice: item.voice, hostedFile: item.file, updatedAt: Date.now() }
-          }).catch(() => undefined).then(record=>{if(!record)hostedAudioPromises.delete(key+item.file);return record})
+          }).catch(() => undefined).finally(()=>hostedAudioPromises.delete(key+item.file))
           hostedAudioPromises.set(key+item.file, request)
         }
         return request
@@ -56,7 +71,10 @@ export async function readWordAudios(texts: string[]): Promise<Map<string, WordA
       // The reader can still use an explicitly imported audio or browser fallback.
     }
     return result
-  } finally { db.close() }
+}
+export function invalidateHostedAudioManifest(){
+ hostedManifestPromise=undefined
+ hostedManifestAt=Date.now()
 }
 async function loadHostedManifest() {
   if(Date.now()-hostedManifestAt>60000){hostedManifestPromise=undefined;hostedManifestAt=Date.now()}
@@ -73,17 +91,17 @@ async function loadHostedManifest() {
   return hostedManifestPromise
 }
 async function saveAudios(records: WordAudio[]) {
-  const db = await openAudioDb()
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction('audio', 'readwrite')
-      for (const record of records) tx.objectStore('audio').put(record)
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error)
-      tx.onabort = () => reject(tx.error)
-    })
-  } finally { db.close() }
+  // Safari/WebKit can reject Blob values in IndexedDB, including in private contexts.
+  // Convert outside the transaction: awaiting Blob.arrayBuffer() inside it closes Safari transactions.
+  const stored=await Promise.all(records.map(async({blob,...metadata})=>({...metadata,bytes:await blob.arrayBuffer(),mime:blob.type})))
+  const db=await openAudioDb()
+  try{await new Promise<void>((resolve,reject)=>{
+   const tx=db.transaction('audio','readwrite');let failure:unknown
+   for(const record of stored){const request=tx.objectStore('audio').put(record);request.onerror=()=>{failure=request.error}}
+   tx.oncomplete=()=>resolve();tx.onerror=()=>reject(failure??tx.error??new Error('音频保存失败，请检查本机储存空间。'));tx.onabort=()=>reject(failure??tx.error??new Error('音频保存已中止。'))
+  })}finally{db.close()}
 }
+
 function audioMime(bytes: Uint8Array) {
   const tag = (start: number, end: number) => String.fromCharCode(...bytes.slice(start, end))
   if (tag(0, 3) === 'ID3' || (bytes[0] === 255 && (bytes[1] & 224) === 224)) return 'audio/mpeg'
@@ -97,7 +115,7 @@ async function verifyAudio(blob: Blob) {
   try {
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => finish(new Error('音频读取超时')), 8000)
-      function finish(error?: Error) { clearTimeout(timeout); audio.onloadedmetadata = null; audio.onerror = null; error ? reject(error) : resolve() }
+      function finish(error?: Error) { clearTimeout(timeout); audio.onloadedmetadata = null; audio.onerror = null; if(error)reject(error);else resolve() }
       audio.onloadedmetadata = () => finish(Number.isFinite(audio.duration) && audio.duration > 0 ? undefined : new Error('音频没有有效时长'))
       audio.onerror = () => finish(new Error('浏览器无法播放该音频，请转换为 MP3。'))
       audio.src = url
@@ -141,11 +159,12 @@ export async function importWordAudio(files: File[], texts: string[]) {
   }
   if (!candidates.size) throw new Error('没有匹配到当前范围内的词条。散装音频请命名为 apple.mp3，或使用生成的 ZIP。')
   const records: WordAudio[] = []
+  const observed=await loadHostedManifest().catch(()=>undefined)
   // Validate every file before the transaction so a bad import never partially replaces good audio.
   for (const [key, item] of candidates) {
     const blob = new Blob([new Uint8Array(item.bytes)], { type: audioMime(item.bytes) })
     await verifyAudio(blob)
-    records.push({ key, text: item.text, blob, voice: item.voice, updatedAt: Date.now() })
+    records.push({ key, text: item.text, blob, voice: item.voice, updatedAt: Date.now(),...(observed?{baseHostedFile:observed.get(key)?.file??null}:{}) })
   }
   await saveAudios(records)
   window.dispatchEvent(new Event('pep-materials-changed'))
@@ -181,5 +200,10 @@ export async function exportWordAudio(texts: string[]) {
 
 export async function listLocalWordAudios():Promise<WordAudio[]>{
  const db=await openAudioDb()
- try{return await new Promise((resolve,reject)=>{const request=db.transaction('audio').objectStore('audio').getAll();request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}finally{db.close()}
+ try{
+  const values=await new Promise<StoredWordAudio[]>((resolve,reject)=>{const tx=db.transaction('audio'),request=tx.objectStore('audio').getAll();request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);tx.onabort=()=>reject(tx.error)})
+  const restored=values.map(restoreAudio)
+  if(restored.some(value=>!value))throw new Error('本机有损坏的音频记录，请重新导入对应音频后再发布。')
+  return restored as WordAudio[]
+ }finally{db.close()}
 }

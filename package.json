@@ -15,7 +15,9 @@
     "test:expressions": "node tools/test-expressions.mjs",
     "test:selection": "node tools/test-dictation-selection.mjs",
     "test:vocabulary": "node tools/test-vocabulary.mjs",
-    "test:reader": "node tools/test-reader-layout.mjs"
+    "test:reader": "node tools/test-reader-layout.mjs",
+    "test": "node --test tools/test-*.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "fflate": "^0.8.3",
@@ -26,6 +28,7 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

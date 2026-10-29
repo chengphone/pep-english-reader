@@ -7,7 +7,7 @@ export default function DictationSession({words,title,repeat,onBack}:{words:Word
  const [index,setIndex]=useState(0),[played,setPlayed]=useState(0),[status,setStatus]=useState<Status>('speaking'),[autoNext,setAutoNext]=useState(false),[waitSeconds,setWaitSeconds]=useState(5),[remaining,setRemaining]=useState(5),[revealed,setRevealed]=useState(false)
  const [source,setSource]=useState('正在读取本地音频…'),[allowFallback,setAllowFallback]=useState(false)
  const run=useRef(0),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),utterance=useRef<SpeechSynthesisUtterance|null>(null)
- const player=useRef<HTMLAudioElement|null>(null),objectUrl=useRef(''),audioCache=useRef<Promise<Map<string,WordAudio>>|null>(null)
+ const player=useRef<HTMLAudioElement|null>(null),objectUrl=useRef('')
  function stop(){run.current++;clearTimeout(timer.current);if(player.current){player.current.onended=null;player.current.onerror=null;player.current.pause();player.current.removeAttribute('src');player.current.load();player.current=null}if(objectUrl.current){URL.revokeObjectURL(objectUrl.current);objectUrl.current=''}if(utterance.current){utterance.current.onend=null;utterance.current.onerror=null;utterance.current=null}window.speechSynthesis?.cancel()}
  async function playQuestion(at:number,alreadyPlayed=0,fallback=allowFallback){
   stop();setIndex(at);setPlayed(alreadyPlayed)
@@ -17,7 +17,7 @@ export default function DictationSession({words,title,repeat,onBack}:{words:Word
   const fail=(message:string)=>{if(token!==run.current)return;stop();setSource(message);setStatus('error')}
   const ended=()=>{if(token!==run.current)return;done++;setPlayed(done);if(done>=repeat)setStatus('writing');else timer.current=setTimeout(say,450)}
   let record:WordAudio|undefined
-  try{audioCache.current??=readWordAudios(words.map(w=>w.english));record=(await audioCache.current).get(audioKey(words[at].english))}catch{fail('本地音频读取失败，请返回检查音频。');return}
+  try{record=(await readWordAudios([words[at].english])).get(audioKey(words[at].english))}catch{fail('本地音频读取失败，请返回检查音频。');return}
   if(token!==run.current)return
   if(record){objectUrl.current=URL.createObjectURL(record.blob);player.current=new Audio(objectUrl.current);setSource(record.voice.startsWith('网站音频')?record.voice:'本地音频 · '+record.voice)}
   else if(!fallback){fail('本题缺少本地音频，请返回“管理词表”导入，或开启备用朗读。');return}

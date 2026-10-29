@@ -1,3 +1,6 @@
+import { normalizeUnitWordIds } from './vocabularyWords'
+import { validateVocabularyLibrary, validVocabularyUnit } from './libraryValidation'
+import { readSharedMetadata, updateSharedMetadata, withSharedSyncLock } from './sharedMetadata'
 import { stable } from './sharedCanonical'
 import type { VocabularyUnit } from './vocabularyExtraction'
 function openDb() {
@@ -7,42 +10,46 @@ function openDb() {
   request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)
  })
 }
-export async function loadUnits():Promise<VocabularyUnit[]> {
+export async function loadUnits(options:{strict?:boolean}={}):Promise<VocabularyUnit[]> {
  const db=await openDb()
- try{return await new Promise((resolve,reject)=>{const request=db.transaction('units').objectStore('units').getAll();request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}finally{db.close()}
+ try{
+  const rows=await new Promise<unknown[]>((resolve,reject)=>{const tx=db.transaction('units'),request=tx.objectStore('units').getAll();request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);tx.onabort=()=>reject(tx.error)})
+  const normalized=rows.map(row=>normalizeUnitWordIds(row as VocabularyUnit))
+  if(options.strict&&normalized.some(unit=>!validVocabularyUnit(unit)))throw new Error('本机存在无法读取的词表，请先校对或恢复资料，再发布。')
+  return normalized.filter(validVocabularyUnit)
+ }finally{db.close()}
 }
+
 async function write(operation:(store:IDBObjectStore)=>void) {
  const db=await openDb()
  try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction('units','readwrite');operation(tx.objectStore('units'));tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error)})}finally{db.close()}
  window.dispatchEvent(new Event('pep-materials-changed'))
 }
-export const saveUnit=(unit:VocabularyUnit)=>write(store=>store.put(unit))
+export async function saveUnit(unit:VocabularyUnit){const normalized=normalizeUnitWordIds(unit);if(!validVocabularyUnit(normalized))throw new Error('词表名称、词句或编号无效，未保存。');await write(store=>store.put(normalized))}
 export const deleteUnit=(id:string)=>write(store=>store.delete(id))
 
-const BASELINE='pep-shared-vocabulary-baseline-v2'
-export function readSharedBaseline():VocabularyUnit[]{try{return JSON.parse(localStorage.getItem(BASELINE)??'[]')}catch{return []}}
-export function setSharedBaseline(units:VocabularyUnit[]){localStorage.setItem(BASELINE,JSON.stringify(units))}
+export async function readSharedBaseline(){return (await readSharedMetadata()).baseline}
+export async function setSharedBaseline(units:VocabularyUnit[]){await updateSharedMetadata(value=>({...value,baseline:units}))}
 let syncing:Promise<VocabularyUnit[]>|undefined
 export function seedHostedVocabulary(){
- syncing??=refreshSharedVocabulary().finally(()=>{syncing=undefined})
+ syncing??=withSharedSyncLock(refreshSharedVocabulary).finally(()=>{syncing=undefined})
  return syncing
 }
 async function refreshSharedVocabulary(){
  try{
   const response=await fetch(import.meta.env.BASE_URL+'data/default-vocabulary.json?version='+Date.now(),{cache:'no-store'})
   if(!response.ok)throw new Error('Hosted practice vocabulary unavailable')
-  const data=await response.json() as {schemaVersion:number;units:VocabularyUnit[]}
-  if(data.schemaVersion!==1||!Array.isArray(data.units)||data.units.some(unit=>typeof unit.id!=='string'||typeof unit.book!=='string'||!Array.isArray(unit.words)))throw new Error('Invalid hosted practice vocabulary')
-  const pending=Number(localStorage.getItem('pep-shared-pending-revision')??0)
-  if(Number((data as any).revision??0)<pending)return loadUnits()
-  localStorage.removeItem('pep-shared-pending-revision')
-  const baseline=new Map(readSharedBaseline().map(unit=>[unit.id,unit]))
+  const data=validateVocabularyLibrary(await response.json())
+  const metadata=await readSharedMetadata()
+  const pending=metadata.pendingRevision
+  if(Number(data.revision??0)<pending)return loadUnits()
+  const baseline=new Map(metadata.baseline.map(unit=>[unit.id,unit]))
   const remote=new Map(data.units.map(unit=>[unit.id,unit]))
   const db=await openDb()
   try{await new Promise<void>((resolve,reject)=>{
    const tx=db.transaction('units','readwrite'),store=tx.objectStore('units'),request=store.getAll()
    request.onsuccess=()=>{
-    const current=new Map<string,VocabularyUnit>((request.result as VocabularyUnit[]).map(unit=>[unit.id,unit]))
+    const current=new Map<string,VocabularyUnit>((request.result as VocabularyUnit[]).map(normalizeUnitWordIds).map(unit=>[unit.id,unit]))
     for(const id of new Set([...baseline.keys(),...remote.keys()])){
      const before=baseline.get(id),next=remote.get(id)
      let local=current.get(id)
@@ -58,14 +65,14 @@ async function refreshSharedVocabulary(){
    }
    tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error);tx.onerror=()=>reject(tx.error)
   })}finally{db.close()}
-  setSharedBaseline([...baseline.values()])
+  await updateSharedMetadata(value=>({...value,baseline:[...baseline.values()],pendingRevision:0}))
  }catch(error){console.warn('Shared vocabulary unavailable; using local materials',error)}
  return loadUnits()
 }
 
 // Names are display metadata. Keep stable unit/book/word IDs so audio and progress survive.
 export async function renameMaterialBook(oldName:string,newName:string,bookId?:string){
- const name=newName.trim();if(!name)throw new Error('名称不能为空。')
+ const name=newName.trim();if(!name||name.length>200)throw new Error('名称不能为空，且不能超过 200 个字符。')
  const db=await openDb()
  try{await new Promise<void>((resolve,reject)=>{
   const tx=db.transaction(['books','units'],'readwrite'),bookStore=tx.objectStore('books'),unitStore=tx.objectStore('units')
@@ -85,7 +92,7 @@ export async function renameMaterialBook(oldName:string,newName:string,bookId?:s
  window.dispatchEvent(new Event('pep-materials-changed'))
 }
 export async function renameMaterialUnit(id:string,newName:string){
- const name=newName.trim();if(!name)throw new Error('名称不能为空。')
+ const name=newName.trim();if(!name||name.length>200)throw new Error('名称不能为空，且不能超过 200 个字符。')
  const db=await openDb()
  try{await new Promise<void>((resolve,reject)=>{
   const tx=db.transaction('units','readwrite'),store=tx.objectStore('units');let failure:Error|undefined
