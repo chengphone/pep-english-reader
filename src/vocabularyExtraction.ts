@@ -1,5 +1,5 @@
 import { mergeVocabularyWords } from './vocabularyWords.ts'
-export type VocabularyWord = { id:string; english:string; meaning:string }
+export type VocabularyWord = { id:string; english:string; meaning:string; audio?:{file:string;text:string;bookId:string} }
 export type VocabularyUnit = { id:string; book:string; title:string; words:VocabularyWord[]; source?:string; category?:'units'|'vocabulary'|'expressions' }
 type Category='units'|'vocabulary'|'expressions'
 const unitNumber:Record<string,string>={one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10','一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9','十':'10'}

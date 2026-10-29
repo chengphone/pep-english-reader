@@ -11,7 +11,7 @@ export function validVocabularyUnit(value:unknown):value is VocabularyUnit{
  if(value.category!==undefined&&!['units','vocabulary','expressions'].includes(value.category))return false
  if(value.source!==undefined&&typeof value.source!=='string')return false
  const ids=new Set<string>()
- for(const word of value.words){if(!object(word)||!text(word.id,2000)||!text(word.english,1000)||typeof word.meaning!=='string'||word.meaning.length>4000||ids.has(word.id))return false;ids.add(word.id)}
+ for(const word of value.words){if(!object(word)||!text(word.id,2000)||!text(word.english,1000)||typeof word.meaning!=='string'||word.meaning.length>4000||ids.has(word.id))return false;if(word.audio!==undefined&&(!object(word.audio)||!text(word.audio.text,1000)||!text(word.audio.bookId,200)||typeof word.audio.file!=='string'||!/^audio\/library\/[a-f0-9]{64}\.(mp3|wav|m4a|ogg)$/i.test(word.audio.file)))return false;ids.add(word.id)}
  return true
 }
 export function validateVocabularyLibrary(value:unknown):VocabularyLibrary{
