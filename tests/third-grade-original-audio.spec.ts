@@ -8,10 +8,10 @@ test.afterEach(async({page})=>expect(errors.get(page)).toEqual([]))
 async function choose(page:Page){
  await page.getByRole('button',{name:'听写练习',exact:true}).click();await page.getByRole('combobox',{name:'选择课本',exact:true}).selectOption('3年级英语上册')
  await page.getByRole('button',{name:'Unit 1',exact:true}).click();await page.getByRole('button',{name:/选择词句/}).click();await page.getByRole('button',{name:'清空本单元',exact:true}).click();await page.getByRole('checkbox',{name:'听写 name',exact:true}).check()
- await page.getByRole('button',{name:'数量与播放设置'}).click();await page.getByRole('combobox',{name:'每题播放次数'}).selectOption('1')
+ await page.getByRole('combobox',{name:'每题播放次数'}).selectOption('1')
 }
 async function beginSession(page:Page){await expect(page.getByRole('heading',{name:'准备开始听写'})).toBeVisible({timeout:15000});await page.locator('.dictation-screen').getByRole('button',{name:'开始听写',exact:true}).click()}
-async function start(page:Page){await page.getByRole('button',{name:'检查声音并开始',exact:true}).click();await page.getByRole('button',{name:'开始听写',exact:true}).first().click();await beginSession(page)}
+async function start(page:Page){await page.getByRole('button',{name:'检查声音并开始',exact:true}).click();await beginSession(page)}
 test('textbook recordings override old imported TTS, cache offline, and never synthesize missing originals',async({page,context})=>{
  test.setTimeout(60000)
  await page.evaluate(async()=>{
@@ -24,7 +24,7 @@ test('textbook recordings override old imported TTS, cache offline, and never sy
  await expect(page.getByText(/已读 1 \/ 1 遍.*等待手动下一题/)).toBeVisible({timeout:15000})
  await expect(page.locator('.dictation-audio-source')).toHaveText('网站音频 · 教材原音')
  await expect(page.locator('.dictation-screen')).not.toContainText('备用朗读')
- await page.getByRole('button',{name:'返回词表',exact:true}).click();await context.setOffline(true);await page.getByRole('button',{name:'检查声音并开始',exact:true}).click();await page.getByRole('button',{name:'开始听写',exact:true}).first().click();await beginSession(page)
+ await page.getByRole('button',{name:'返回词表',exact:true}).click();await context.setOffline(true);await page.getByRole('button',{name:'检查声音并开始',exact:true}).click();await beginSession(page)
  await expect(page.getByText(/已读 1 \/ 1 遍.*等待手动下一题/)).toBeVisible({timeout:15000})
  await page.getByRole('button',{name:'返回词表',exact:true}).click()
  await page.route('**/'+original.audio.file,route=>route.abort())
