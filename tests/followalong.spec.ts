@@ -31,7 +31,7 @@ const mockAudio=async(page:any)=>page.addInitScript(()=>{(window as any).__playe
 const recordAudio=async(page:any,requests:string[])=>page.route('**/audio/library/**',(route:any)=>{const file=new URL(route.request().url()).pathname.split('/').pop()!;requests.push(file);const body=audioBytes.get(file);return body?route.fulfill({status:200,contentType:'audio/mpeg',body}):route.fulfill({status:404,body:''})})
 
 test.describe.configure({mode:'serial'})
-test.use({browserName:'chromium',storageState:undefined})
+test.use({storageState:undefined})
 
 test('shelf entry lands directly on Unit 1 with exact words, textbook phonetics and one-to-one audio',async({browser})=>{
  const context=await browser.newContext();const page=await context.newPage()
