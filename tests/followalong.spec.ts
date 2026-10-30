@@ -27,7 +27,7 @@ const audioFileFor=(unitId:string,english:string)=>{
  const playableUnit=playableLibrary.units.find((item:any)=>item.id===unitId)
  return playableUnit.words.find((word:any)=>word.english===english).audio.file.split('/').pop()
 }
-const mockAudio=async(page:any)=>page.addInitScript(()=>{(window as any).__playedAudio=[];window.Audio=class {src='';playbackRate=1;onended:any=null;onerror:any=null;constructor(src=''){this.src=src}pause(){}play(){(window as any).__playedAudio.push(this.src);queueMicrotask(()=>this.onended?.());return Promise.resolve()}} as any})
+const mockAudio=async(page:any)=>page.addInitScript(()=>{(window as any).__playedAudio=[];window.Audio=class {src='';playbackRate=1;onended:any=null;onerror:any=null;constructor(src=''){this.src=src}pause(){}play(){(window as any).__playedAudio.push(this.src);setTimeout(()=>this.onended?.(),0);return Promise.resolve()}} as any})
 const recordAudio=async(page:any,requests:string[])=>page.route('**/audio/library/**',(route:any)=>{const file=new URL(route.request().url()).pathname.split('/').pop()!;requests.push(file);const body=audioBytes.get(file);return body?route.fulfill({status:200,contentType:'audio/mpeg',body}):route.fulfill({status:404,body:''})})
 
 test.describe.configure({mode:'serial'})
@@ -49,6 +49,7 @@ test('shelf entry lands directly on Unit 1 with exact words, textbook phonetics 
  await expect(page.locator('.followalong-phonetic')).toHaveText(unitEntry.words[0].phonetic);await expect(page.locator('.followalong-phonetic')).toHaveText('/neɪm/');await expect(page.locator('.followalong-meaning')).toContainText(unit.words[0].meaning)
  await page.getByRole('button',{name:'播放 name',exact:true}).click();await expect.poll(()=>audioRequests).toHaveLength(1);expect(audioRequests[0]).toBe(audioFileFor(unitId,'name'))
  await expect.poll(()=>page.evaluate(()=>((window as any).__playedAudio as string[]).length)).toBe(1)
+ const playControl=page.getByRole('button',{name:'播放单词',exact:true});await expect(playControl).toHaveText(/播放/);await playControl.hover();await expect(playControl).toHaveCSS('background-color','rgb(16, 87, 63)')
  await page.getByRole('button',{name:'下一个词'}).first().click();await expect(page.locator('.followalong-card h2')).toContainText('nice');await expect(page.locator('.followalong-meaning')).toContainText(unit.words[1].meaning)
  await page.getByRole('button',{name:'上一个词'}).first().click();await expect(page.locator('.followalong-card h2')).toContainText('name')
  await page.getByRole('navigation',{name:'单元词汇'}).getByRole('button',{name:/8 can/}).click();await expect(page.locator('.followalong-card h2')).toContainText('can');await expect(page.locator('.followalong-phonetic')).toHaveText('/kən, kæn/');await page.getByRole('button',{name:'播放 can',exact:true}).click();await expect.poll(()=>audioRequests).toHaveLength(2);expect(audioRequests[1]).toBe(audioFileFor(unitId,'can'));expect(audioRequests[1]).not.toBe(audioRequests[0])
