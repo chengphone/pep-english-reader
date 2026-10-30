@@ -48,6 +48,8 @@ test('the supplied six-grade PEP version opens its exact E63 book ID',async({pag
  await page.getByRole('button',{name:'打开 六年级上册 人教PEP新版',exact:true}).click()
  await expect(page.locator('iframe')).toHaveAttribute('src','https://dd.e63.cn/reader.html?book=tape6a_002015')
  await expect(page.locator('iframe')).toHaveAttribute('title','E63 人教PEP新版 · 6年级上册')
+ await page.getByRole('button',{name:'更多阅读操作'}).click();await page.getByRole('menuitem',{name:'跟读学习',exact:true}).click()
+ await expect(page.getByLabel('选择跟读教材')).toHaveValue('tape6a_002015');await expect(page.locator('.followalong-card h2')).toContainText('was')
 })
 
 

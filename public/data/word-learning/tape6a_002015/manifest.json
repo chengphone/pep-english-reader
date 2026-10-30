@@ -1,0 +1,657 @@
+{
+  "schemaVersion": 3,
+  "bookId": "tape6a_002015",
+  "bookTitle": "六年级英语上册",
+  "phoneticSource": "Appendix 2 「Words in each unit」 pp. 81–84, transcribed exactly as printed; multi-word entries without complete printed phonetics have no phonetic",
+  "license": "original",
+  "sections": [
+    {
+      "id": "words",
+      "title": "单元词汇",
+      "units": [
+        {
+          "unitId": "e63-6a-002015-units-u1",
+          "title": "Unit 1",
+          "words": [
+            {
+              "id": "e63-6a-002015-units-u1-b63b99f6383b",
+              "phonetic": "/wəz/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-d73d3e7a7e1d",
+              "phonetic": "/klaɪm/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-875f01c5306f",
+              "phonetic": "/kɪˈlɒmɪtə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-00fabdd71d4d",
+              "phonetic": ""
+            },
+            {
+              "id": "e63-6a-002015-units-u1-27ce1d1bf427",
+              "phonetic": "/send/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-4cd0e21a9a07",
+              "phonetic": "/ɡəʊ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-a0af3a48cfad",
+              "phonetic": "/ˈθaʊznd/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-06363555054d",
+              "phonetic": "/kleɪ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-aa9e9b5c907d",
+              "phonetic": "/siː/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-05cfbe283381",
+              "phonetic": "/ˈvɪlɪdʒ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-e57bd924047e",
+              "phonetic": "/iːt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-b755cb248c3c",
+              "phonetic": "/draɪ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-d1905cf90af2",
+              "phonetic": "/teɪk/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-2bcb43cbc8f6",
+              "phonetic": "/vjuː/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-e6f751b1caf5",
+              "phonetic": "/ɪnˈspaɪərɪŋ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-add1743eae5b",
+              "phonetic": "/bæmˈbuː/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-ff48e511e163",
+              "phonetic": "/ˈpʌmpkɪn/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-ee275d64dafc",
+              "phonetic": "/ˈrestrɒnt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-ccc9ff052aee",
+              "phonetic": "/ˈeəpɔːt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-2898e16d4e4e",
+              "phonetic": "/ˌnjuː ˈziːlənd/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-3f2f3bc39b66",
+              "phonetic": ""
+            },
+            {
+              "id": "e63-6a-002015-units-u1-5dd272b4f316",
+              "phonetic": "/ˈpærɪs/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-ca5f05f1e577",
+              "phonetic": ""
+            },
+            {
+              "id": "e63-6a-002015-units-u1-627e98ebae44",
+              "phonetic": "/ˌterəˈkɒtə ˈwɒriəz/"
+            },
+            {
+              "id": "e63-6a-002015-units-u1-d216a11b80a6",
+              "phonetic": ""
+            },
+            {
+              "id": "e63-6a-002015-units-u1-89d95f56a230",
+              "phonetic": ""
+            }
+          ]
+        },
+        {
+          "unitId": "e63-6a-002015-units-u2",
+          "title": "Unit 2",
+          "words": [
+            {
+              "id": "e63-6a-002015-units-u2-a2c183d5a12a",
+              "phonetic": "/peɪst/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-5b612edb571c",
+              "phonetic": "/dres/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-2a431f021a22",
+              "phonetic": "/ˈɡɑːlə/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-443de80769ab",
+              "phonetic": "/kaʊnt daʊn/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-6d205806e19d",
+              "phonetic": "/ˈmærəθən/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-f4bf9f7fcbed",
+              "phonetic": "/əz/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-129ce50dd90b",
+              "phonetic": "/reɪs/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-acba25512100",
+              "phonetic": "/rʌn/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-19051351bb6d",
+              "phonetic": "/tʃɪə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-970f17d5f7e0",
+              "phonetic": ""
+            },
+            {
+              "id": "e63-6a-002015-units-u2-b93006774cbd",
+              "phonetic": "/ˈraɪtə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-3316348dbadf",
+              "phonetic": "/riːd/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-d05aa2a15fb3",
+              "phonetic": "/meɪk/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-6342d0648a74",
+              "phonetic": "/sɪŋ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-c47fbc5d87a1",
+              "phonetic": "/weə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-9523d9fbe79b",
+              "phonetic": "/ˈjestədeɪ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-9368a7d21e01",
+              "phonetic": "/ˈnəʊtɪs/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-51391bf0ab33",
+              "phonetic": "/weɪk/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-1d9283d848ea",
+              "phonetic": "/ˈleɪtə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-10e86c6514d4",
+              "phonetic": "/dʒʌdʒ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-e6f07d43b5c2",
+              "phonetic": "/bɪˈɡɪn/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-823a3180dad3",
+              "phonetic": "/wɪn/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-4221a0fc3dfb",
+              "phonetic": "/ˈwɪnə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-63212655f2e2",
+              "phonetic": "/ˈevə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u2-5ae666e5b1a6",
+              "phonetic": "/ɪkˈsaɪtɪŋ/"
+            }
+          ]
+        },
+        {
+          "unitId": "e63-6a-002015-units-u3",
+          "title": "Unit 3",
+          "words": [
+            {
+              "id": "e63-6a-002015-units-u3-e272deecde72",
+              "phonetic": "/kəʊld/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-c426a5fe614f",
+              "phonetic": "/ɪl/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-9f2e6d33a371",
+              "phonetic": "/hed/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-ef5c0fa84d5a",
+              "phonetic": ""
+            },
+            {
+              "id": "e63-6a-002015-units-u3-4a754148b88a",
+              "phonetic": "/suːn/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-1e44a1c45388",
+              "phonetic": "/ˈfiːvə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-866ab33b8463",
+              "phonetic": "/kɒf/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-d6a919ef5362",
+              "phonetic": "/dɪˈskʌs/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-a36c443337b5",
+              "phonetic": "/ˈdaɪət/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-8bc9e1df926a",
+              "phonetic": ""
+            },
+            {
+              "id": "e63-6a-002015-units-u3-58a69b8bb1f5",
+              "phonetic": "/kraɪ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-ae448ac86c4e",
+              "phonetic": "/əˈnʌðə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-7edb360f06ac",
+              "phonetic": "/kɔːl/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-82244417f956",
+              "phonetic": "/ˈiːmeɪl/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-2e95d0e38d8d",
+              "phonetic": "/ʌnˈhæpi/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-132a1a391cce",
+              "phonetic": "/ɡlɑːs/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-ee4d988c65de",
+              "phonetic": "/meɪ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-7e9e5ac30f22",
+              "phonetic": "/æd/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-0cab1c961740",
+              "phonetic": "/ˈvɪdiəʊ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u3-d7d5dcc36942",
+              "phonetic": "/ˈbetə(r)/"
+            }
+          ]
+        },
+        {
+          "unitId": "e63-6a-002015-units-u4",
+          "title": "Unit 4",
+          "words": [
+            {
+              "id": "e63-6a-002015-units-u4-8d2ac8b58ead",
+              "phonetic": "/ˈmʌni/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-9cf0a5e377ab",
+              "phonetic": "/ˈpɒkɪt ˈmʌni/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-ce213852297e",
+              "phonetic": "/ˈskuːlbæɡ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-089857f9c407",
+              "phonetic": "/ɡʊdz/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-218ae6b44966",
+              "phonetic": "/drɪŋk/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-9df6b026a8c6",
+              "phonetic": "/ˈsɜːvɪs/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-8a9c59afb7e7",
+              "phonetic": "/ˈheəkʌt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-0f09538d0ea0",
+              "phonetic": "/ˈmaɪkrəskəʊp/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-db9fbddbd7ca",
+              "phonetic": "/ˈlʌki/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-a11ae06469c6",
+              "phonetic": "/hɑːf/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-4fd7f03af920",
+              "phonetic": ""
+            },
+            {
+              "id": "e63-6a-002015-units-u4-1f7101fe7101",
+              "phonetic": "/seɪl/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-14069429150a",
+              "phonetic": "/ˈtɪkɪt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-181229424893",
+              "phonetic": "/ˈmænɪdʒ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-c0f21d451463",
+              "phonetic": "/sel/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-0163f1eea789",
+              "phonetic": "/dʒɑː(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u4-e67a8d131efb",
+              "phonetic": ""
+            }
+          ]
+        },
+        {
+          "unitId": "e63-6a-002015-units-u5",
+          "title": "Unit 5",
+          "words": [
+            {
+              "id": "e63-6a-002015-units-u5-cb5815fe5c3c",
+              "phonetic": "/ˈplænɪt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-7b74b418a352",
+              "phonetic": "/ɜːθ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-05f514fae7ca",
+              "phonetic": "/skaɪ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-49df1e5699a2",
+              "phonetic": "/ˈdeɪtaɪm/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-56681010b753",
+              "phonetic": "/klaʊd/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-9e78b43ea00e",
+              "phonetic": "/muːn/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-525eca1d5089",
+              "phonetic": "/stɑː(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-3f49dbbfe051",
+              "phonetic": "/speɪs/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-88eef2a1a04b",
+              "phonetic": "/ˈaʊtə(r) speɪs/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-5be3467b5bd8",
+              "phonetic": ""
+            },
+            {
+              "id": "e63-6a-002015-units-u5-47afad612b1f",
+              "phonetic": "/ˈəʊʃn/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-a9dd98f82c7d",
+              "phonetic": "/ˈmɑːbl/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-dc4b4e203f9d",
+              "phonetic": "/ˈsætəlaɪt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-e93d59a02163",
+              "phonetic": "/sɔɪl/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-a49c1d038068",
+              "phonetic": "/ˈeɪliən/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-e9f2a0186210",
+              "phonetic": "/ˈsʌnraɪz/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-b0c5f417a5a9",
+              "phonetic": "/ˈrəʊvə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-6b847a0ed0b2",
+              "phonetic": "/ˈɪntə/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-918d6b6a9b95",
+              "phonetic": "/ˈtelɪskəʊp/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-df0c29d39619",
+              "phonetic": "/ˈæstrənɔːt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-c2c002ca28f6",
+              "phonetic": "/ˈspeɪsʃɪp/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-a5c7d1719e28",
+              "phonetic": "/mʌnθ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-35b7924ee4c6",
+              "phonetic": "/ˈtaɪkənɔːt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-d6e28ffb3b19",
+              "phonetic": "/klɒθ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-26e466582de8",
+              "phonetic": "/ˈtuːθpeɪst/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-1f5087db919c",
+              "phonetic": "/ˈkwestʃən/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-0829103205fb",
+              "phonetic": "/ˈsʌnset/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-336074805fc8",
+              "phonetic": "/taɪm/"
+            },
+            {
+              "id": "e63-6a-002015-units-u5-a0a6ca091c70",
+              "phonetic": "/mɑːz/"
+            }
+          ]
+        },
+        {
+          "unitId": "e63-6a-002015-units-u6",
+          "title": "Unit 6",
+          "words": [
+            {
+              "id": "e63-6a-002015-units-u6-07d715edb696",
+              "phonetic": "/ˈpaʊə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-ae80c184961f",
+              "phonetic": "/ɪˌlekˈtrɪsəti/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-2bfbc118abca",
+              "phonetic": "/ˈsəʊlə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-1303c06b0b01",
+              "phonetic": "/taɪp/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-381cfb6e1e42",
+              "phonetic": "/ˈenədʒi/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-99a7026172d4",
+              "phonetic": "/laɪt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-5a2a0ed9aa3a",
+              "phonetic": "/hiːt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-c34045c1a1db",
+              "phonetic": "/kuːl/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-acba25512100",
+              "phonetic": "/rʌn/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-5de95319f174",
+              "phonetic": "/rɪˈsɔːs/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-878edf659ebf",
+              "phonetic": ""
+            },
+            {
+              "id": "e63-6a-002015-units-u6-12ea12eace7d",
+              "phonetic": "/tʃeɪndʒ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-22c72aa82ce7",
+              "phonetic": "/kwɪk/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-528159b45697",
+              "phonetic": "/ˈʃaʊə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-5004da7363b8",
+              "phonetic": "/ʌnˈplʌɡ/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-69ea741e98fd",
+              "phonetic": "/ˈdɪfrəns/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-4c7e98bfa0c7",
+              "phonetic": "/rɪˈdjuːs/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-b690326d377b",
+              "phonetic": "/ˈeə kənˌdɪʃənə(r)/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-7062520c5a0e",
+              "phonetic": "/draɪv/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-d9c0d34144c1",
+              "phonetic": "/ˌriːˈjuːz/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-5b3975651c3c",
+              "phonetic": "/əʊn/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-e4d693d24e64",
+              "phonetic": "/ˈmɑːkɪt/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-7def9c79e5be",
+              "phonetic": "/ˈbɒtl/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-28720365c5e7",
+              "phonetic": "/tɒp/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-a62ed7b95a2f",
+              "phonetic": "/ˈjuːsfl/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-d0c92c764c56",
+              "phonetic": "/ˈdɜːti/"
+            },
+            {
+              "id": "e63-6a-002015-units-u6-ea7bf4bb7230",
+              "phonetic": "/saɪd/"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "expressions",
+      "title": "常用表达",
+      "units": [
+        {
+          "unitId": "e63-6a-002015-expressions-u1",
+          "title": "Unit 1"
+        },
+        {
+          "unitId": "e63-6a-002015-expressions-u2",
+          "title": "Unit 2"
+        },
+        {
+          "unitId": "e63-6a-002015-expressions-u3",
+          "title": "Unit 3"
+        },
+        {
+          "unitId": "e63-6a-002015-expressions-u4",
+          "title": "Unit 4"
+        },
+        {
+          "unitId": "e63-6a-002015-expressions-u5",
+          "title": "Unit 5"
+        },
+        {
+          "unitId": "e63-6a-002015-expressions-u6",
+          "title": "Unit 6"
+        }
+      ]
+    }
+  ]
+}

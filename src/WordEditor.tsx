@@ -1,7 +1,0 @@
-import { normalizeWordIds } from './vocabularyWords'
-import { Plus, Trash2 } from 'lucide-react'
-import type { VocabularyWord } from './vocabularyExtraction'
-export default function WordEditor({words,onChange,disabled=false}:{words:VocabularyWord[];disabled?:boolean;onChange:(words:VocabularyWord[])=>void}) {
- const rows=normalizeWordIds(words)
- return <section className="material-word-editor" aria-label="词句校对"><div className="material-word-heading"><h3>词句内容 <span>{words.length} 条</span></h3><button className="soft-btn" disabled={disabled} onClick={()=>onChange([...rows,{id:crypto.randomUUID(),english:'',meaning:''}])}><Plus size={16}/>添加词句</button></div><div className="material-word-labels"><span/><span>英文</span><span>中文释义</span><span/></div>{rows.map((word,index)=><div className="material-word-row" key={word.id}><span>{index+1}</span><input disabled={disabled} aria-label={`第 ${index+1} 条英文`} placeholder="English" value={word.english} onChange={event=>onChange(rows.map((item,at)=>at===index?{...item,english:event.target.value}:item))}/><input disabled={disabled} aria-label={`第 ${index+1} 条中文`} placeholder="中文释义" value={word.meaning} onChange={event=>onChange(rows.map((item,at)=>at===index?{...item,meaning:event.target.value}:item))}/><button disabled={disabled} aria-label={`删除第 ${index+1} 条词句`} onClick={()=>onChange(rows.filter((_item,at)=>at!==index))}><Trash2 size={16}/></button></div>)}</section>
-}

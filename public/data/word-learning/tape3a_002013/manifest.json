@@ -1,0 +1,599 @@
+{
+  "schemaVersion": 3,
+  "bookId": "tape3a_002013",
+  "bookTitle": "三年级英语上册",
+  "phoneticSource": "Appendix 3 「Words in each unit」 pp. 83–85, transcribed exactly as printed",
+  "license": "original",
+  "sections": [
+    {
+      "id": "words",
+      "title": "单元词汇",
+      "units": [
+        {
+          "unitId": "hosted-default:units:7",
+          "title": "Unit 1",
+          "words": [
+            {
+              "id": "units:Unit 1:name",
+              "phonetic": "/neɪm/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/name.svg",
+                "alt": "A child introduces themself with a name tag reading Alex.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:nice",
+              "phonetic": "/naɪs/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/nice.svg",
+                "alt": "Two children greet one another with friendly smiles.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:ear",
+              "phonetic": "/ɪə(r)/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/ear.svg",
+                "alt": "Simple side-view illustration of an ear.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:hand",
+              "phonetic": "/hænd/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/hand.svg",
+                "alt": "An open hand with five clearly visible fingers.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:eye",
+              "phonetic": "/aɪ/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/eye.svg",
+                "alt": "A clear close-up drawing of an eye.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:mouth",
+              "phonetic": "/maʊθ/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/mouth.svg",
+                "alt": "A smiling mouth showing teeth.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:arm",
+              "phonetic": "/ɑːm/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/arm.svg",
+                "alt": "An arm bent at the elbow with the hand visible.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:can",
+              "phonetic": "/kən, kæn/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/can.svg",
+                "alt": "A child points to a completed block tower beside the words I can.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:share",
+              "phonetic": "/ʃeə(r)/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/share.svg",
+                "alt": "Two children share crayons, with crayons visibly split between them.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:smile",
+              "phonetic": "/smaɪl/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/smile.svg",
+                "alt": "A cheerful face with a curved smiling mouth.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:listen",
+              "phonetic": "/ˈlɪsn/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/listen.svg",
+                "alt": "One child listens as another speaks, with sound marks by the speaker.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:help",
+              "phonetic": "/help/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/help.svg",
+                "alt": "A child helps another child.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:say",
+              "phonetic": "/seɪ/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/say.svg",
+                "alt": "A child speaks with a speech bubble containing Hello.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:friend",
+              "phonetic": "/frend/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/friend.svg",
+                "alt": "Two children stand side by side and wave together.",
+                "provenance": "original",
+                "license": "original"
+              }
+            },
+            {
+              "id": "units:Unit 1:good",
+              "phonetic": "/ɡʊd/",
+              "illustration": {
+                "path": "/assets/word-learning/grade-3-upper-unit-1/good.svg",
+                "alt": "A completed picture of a sunny landscape beside a thumbs-up.",
+                "provenance": "original",
+                "license": "original"
+              }
+            }
+          ]
+        },
+        {
+          "unitId": "hosted-default:units:8",
+          "title": "Unit 2",
+          "words": [
+            {
+              "id": "units:Unit 2:mum",
+              "phonetic": "/mʌm/"
+            },
+            {
+              "id": "units:Unit 2:dad",
+              "phonetic": "/dæd/"
+            },
+            {
+              "id": "units:Unit 2:grandma",
+              "phonetic": "/ˈɡrænmɑː/"
+            },
+            {
+              "id": "units:Unit 2:grandpa",
+              "phonetic": "/ˈɡrænpɑː/"
+            },
+            {
+              "id": "units:Unit 2:grandfather",
+              "phonetic": "/ˈɡrænfɑːðə(r)/"
+            },
+            {
+              "id": "units:Unit 2:grandmother",
+              "phonetic": "/ˈɡrænmʌðə(r)/"
+            },
+            {
+              "id": "units:Unit 2:mother",
+              "phonetic": "/ˈmʌðə(r)/"
+            },
+            {
+              "id": "units:Unit 2:father",
+              "phonetic": "/ˈfɑːðə(r)/"
+            },
+            {
+              "id": "units:Unit 2:me",
+              "phonetic": "/miː/"
+            },
+            {
+              "id": "units:Unit 2:sister",
+              "phonetic": "/ˈsɪstə(r)/"
+            },
+            {
+              "id": "units:Unit 2:family",
+              "phonetic": "/ˈfæməli/"
+            },
+            {
+              "id": "units:Unit 2:have",
+              "phonetic": "/hæv/"
+            },
+            {
+              "id": "units:Unit 2:big",
+              "phonetic": "/bɪɡ/"
+            },
+            {
+              "id": "units:Unit 2:cousin",
+              "phonetic": "/ˈkʌzn/"
+            },
+            {
+              "id": "units:Unit 2:brother",
+              "phonetic": "/ˈbrʌðə(r)/"
+            },
+            {
+              "id": "units:Unit 2:baby",
+              "phonetic": "/ˈbeɪbi/"
+            },
+            {
+              "id": "units:Unit 2:uncle",
+              "phonetic": "/ˈʌŋkl/"
+            },
+            {
+              "id": "units:Unit 2:aunt",
+              "phonetic": "/ɑːnt/"
+            },
+            {
+              "id": "units:Unit 2:small",
+              "phonetic": "/smɔːl/"
+            }
+          ]
+        },
+        {
+          "unitId": "hosted-default:units:9",
+          "title": "Unit 3",
+          "words": [
+            {
+              "id": "units:Unit 3:like",
+              "phonetic": "/laɪk/"
+            },
+            {
+              "id": "units:Unit 3:dog",
+              "phonetic": "/dɒɡ/"
+            },
+            {
+              "id": "units:Unit 3:pet",
+              "phonetic": "/pet/"
+            },
+            {
+              "id": "units:Unit 3:cat",
+              "phonetic": "/kæt/"
+            },
+            {
+              "id": "units:Unit 3:fish",
+              "phonetic": "/fɪʃ/"
+            },
+            {
+              "id": "units:Unit 3:bird",
+              "phonetic": "/bɜːd/"
+            },
+            {
+              "id": "units:Unit 3:rabbit",
+              "phonetic": "/ˈræbɪt/"
+            },
+            {
+              "id": "units:Unit 3:go",
+              "phonetic": "/ɡəʊ/"
+            },
+            {
+              "id": "units:Unit 3:zoo",
+              "phonetic": "/zuː/"
+            },
+            {
+              "id": "units:Unit 3:fox",
+              "phonetic": "/fɒks/"
+            },
+            {
+              "id": "units:Unit 3:miss",
+              "phonetic": "/mɪs/"
+            },
+            {
+              "id": "units:Unit 3:panda",
+              "phonetic": "/ˈpændə/"
+            },
+            {
+              "id": "units:Unit 3:red",
+              "phonetic": "/red ˈpændə/"
+            },
+            {
+              "id": "units:Unit 3:cute",
+              "phonetic": "/kjuːt/"
+            },
+            {
+              "id": "units:Unit 3:monkey",
+              "phonetic": "/ˈmʌŋki/"
+            },
+            {
+              "id": "units:Unit 3:tiger",
+              "phonetic": "/ˈtaɪɡə(r)/"
+            },
+            {
+              "id": "units:Unit 3:elephant",
+              "phonetic": "/ˈelɪfənt/"
+            },
+            {
+              "id": "units:Unit 3:lion",
+              "phonetic": "/ˈlaɪən/"
+            },
+            {
+              "id": "units:Unit 3:animal",
+              "phonetic": "/ˈænɪml/"
+            },
+            {
+              "id": "units:Unit 3:giraffe",
+              "phonetic": "/dʒəˈrɑːf/"
+            },
+            {
+              "id": "units:Unit 3:tall",
+              "phonetic": "/tɔːl/"
+            },
+            {
+              "id": "units:Unit 3:fast",
+              "phonetic": "/fɑːst/"
+            }
+          ]
+        },
+        {
+          "unitId": "hosted-default:units:10",
+          "title": "Unit 4",
+          "words": [
+            {
+              "id": "units:Unit 4:apple",
+              "phonetic": "/ˈæpl/"
+            },
+            {
+              "id": "units:Unit 4:banana",
+              "phonetic": "/bəˈnɑːnə/"
+            },
+            {
+              "id": "units:Unit 4:farm",
+              "phonetic": "/fɑːm/"
+            },
+            {
+              "id": "units:Unit 4:air",
+              "phonetic": "/eə(r)/"
+            },
+            {
+              "id": "units:Unit 4:orange",
+              "phonetic": "/ˈɒrɪndʒ/"
+            },
+            {
+              "id": "units:Unit 4:grape",
+              "phonetic": "/ɡreɪp/"
+            },
+            {
+              "id": "units:Unit 4:school",
+              "phonetic": "/skuːl/"
+            },
+            {
+              "id": "units:Unit 4:garden",
+              "phonetic": "/ˈɡɑːdn/"
+            },
+            {
+              "id": "units:Unit 4:need",
+              "phonetic": "/niːd/"
+            },
+            {
+              "id": "units:Unit 4:water",
+              "phonetic": "/ˈwɔːtə(r)/"
+            },
+            {
+              "id": "units:Unit 4:flower",
+              "phonetic": "/ˈflaʊə(r)/"
+            },
+            {
+              "id": "units:Unit 4:grass",
+              "phonetic": "/ɡrɑːs/"
+            },
+            {
+              "id": "units:Unit 4:plant",
+              "phonetic": "/plɑːnt/"
+            },
+            {
+              "id": "units:Unit 4:new",
+              "phonetic": "/njuː/"
+            },
+            {
+              "id": "units:Unit 4:tree",
+              "phonetic": "/triː/"
+            },
+            {
+              "id": "units:Unit 4:sun",
+              "phonetic": "/sʌn/"
+            },
+            {
+              "id": "units:Unit 4:give",
+              "phonetic": "/ɡɪv/"
+            },
+            {
+              "id": "units:Unit 4:them",
+              "phonetic": "/ðəm, ðem/"
+            }
+          ]
+        },
+        {
+          "unitId": "hosted-default:units:11",
+          "title": "Unit 5",
+          "words": [
+            {
+              "id": "units:Unit 5:colour",
+              "phonetic": "/ˈkʌlə(r)/"
+            },
+            {
+              "id": "units:Unit 5:orange",
+              "phonetic": "/ˈɒrɪndʒ/"
+            },
+            {
+              "id": "units:Unit 5:green",
+              "phonetic": "/ɡriːn/"
+            },
+            {
+              "id": "units:Unit 5:red",
+              "phonetic": "/red/"
+            },
+            {
+              "id": "units:Unit 5:blue",
+              "phonetic": "/bluː/"
+            },
+            {
+              "id": "units:Unit 5:make",
+              "phonetic": "/meɪk/"
+            },
+            {
+              "id": "units:Unit 5:purple",
+              "phonetic": "/ˈpɜːpl/"
+            },
+            {
+              "id": "units:Unit 5:brown",
+              "phonetic": "/braʊn/"
+            },
+            {
+              "id": "units:Unit 5:bear",
+              "phonetic": "/beə(r)/"
+            },
+            {
+              "id": "units:Unit 5:yellow",
+              "phonetic": "/ˈjeləʊ/"
+            },
+            {
+              "id": "units:Unit 5:duck",
+              "phonetic": "/dʌk/"
+            },
+            {
+              "id": "units:Unit 5:sea",
+              "phonetic": "/siː/"
+            },
+            {
+              "id": "units:Unit 5:some",
+              "phonetic": "/səm, sʌm/"
+            },
+            {
+              "id": "units:Unit 5:pink",
+              "phonetic": "/pɪŋk/"
+            },
+            {
+              "id": "units:Unit 5:draw",
+              "phonetic": "/drɔː/"
+            },
+            {
+              "id": "units:Unit 5:white",
+              "phonetic": "/waɪt/"
+            },
+            {
+              "id": "units:Unit 5:black",
+              "phonetic": "/blæk/"
+            }
+          ]
+        },
+        {
+          "unitId": "hosted-default:units:12",
+          "title": "Unit 6",
+          "words": [
+            {
+              "id": "units:Unit 6:old",
+              "phonetic": "/əʊld/"
+            },
+            {
+              "id": "units:Unit 6:five",
+              "phonetic": "/faɪv/"
+            },
+            {
+              "id": "units:Unit 6:year",
+              "phonetic": "/jɪə(r)/"
+            },
+            {
+              "id": "units:Unit 6:one",
+              "phonetic": "/wʌn/"
+            },
+            {
+              "id": "units:Unit 6:two",
+              "phonetic": "/tuː/"
+            },
+            {
+              "id": "units:Unit 6:three",
+              "phonetic": "/θriː/"
+            },
+            {
+              "id": "units:Unit 6:four",
+              "phonetic": "/fɔː(r)/"
+            },
+            {
+              "id": "units:Unit 6:ten",
+              "phonetic": "/ten/"
+            },
+            {
+              "id": "units:Unit 6:six",
+              "phonetic": "/sɪks/"
+            },
+            {
+              "id": "units:Unit 6:seven",
+              "phonetic": "/ˈsevn/"
+            },
+            {
+              "id": "units:Unit 6:eight",
+              "phonetic": "/eɪt/"
+            },
+            {
+              "id": "units:Unit 6:nine",
+              "phonetic": "/naɪn/"
+            },
+            {
+              "id": "units:Unit 6:o'clock",
+              "phonetic": "/əˈklɒk/"
+            },
+            {
+              "id": "units:Unit 6:cut",
+              "phonetic": "/kʌt/"
+            },
+            {
+              "id": "e63-3a-002013-units-u6-eat",
+              "phonetic": "/iːt/"
+            },
+            {
+              "id": "units:Unit 6:cake",
+              "phonetic": "/keɪk/"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "expressions",
+      "title": "常用表达",
+      "units": [
+        {
+          "unitId": "hosted-default:expressions:1",
+          "title": "Unit 1"
+        },
+        {
+          "unitId": "hosted-default:expressions:2",
+          "title": "Unit 2"
+        },
+        {
+          "unitId": "hosted-default:expressions:3",
+          "title": "Unit 3"
+        },
+        {
+          "unitId": "hosted-default:expressions:4",
+          "title": "Unit 4"
+        },
+        {
+          "unitId": "hosted-default:expressions:5",
+          "title": "Unit 5"
+        },
+        {
+          "unitId": "hosted-default:expressions:6",
+          "title": "Unit 6"
+        }
+      ]
+    }
+  ]
+}

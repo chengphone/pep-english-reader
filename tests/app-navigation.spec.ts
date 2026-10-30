@@ -12,9 +12,19 @@ test('application history returns to the shelf and forward restores a reader',as
 
 test('vocabulary deep links restore the vocabulary workspace',async({page})=>{
  await page.goto('./?view=vocab')
- await expect(page.getByRole('heading',{name:'开始听写'})).toBeVisible()
- await expect(page.getByRole('navigation',{name:'学习导航'}).getByRole('button',{name:'单元默写'})).toHaveAttribute('aria-current','page')
+ await expect(page.getByRole('heading',{name:'听写练习'})).toBeVisible()
+ await expect(page.getByRole('navigation',{name:'学习导航'}).getByRole('button',{name:'听写练习'})).toHaveAttribute('aria-current','page')
  await expect(page).toHaveURL(/view=vocab/)
+})
+
+test('dictation page top navigation returns to the shelf and opens follow-along',async({page})=>{
+ await page.goto('./?view=vocab')
+ await expect(page.getByRole('heading',{name:'听写练习'})).toBeVisible()
+ const nav=page.getByRole('navigation',{name:'学习导航'})
+ await nav.getByRole('button',{name:'课本点读',exact:true}).click();await expect(page.getByRole('heading',{name:'今天读哪一本？'})).toBeVisible()
+ await page.getByRole('button',{name:'听写练习',exact:true}).click();await expect(page.getByRole('heading',{name:'听写练习'})).toBeVisible()
+ await nav.getByRole('button',{name:'跟读学习',exact:true}).click();await expect(page.getByLabel('选择跟读教材')).toHaveValue('tape3a_002013')
+ await page.goBack();await expect(page.getByRole('heading',{name:'听写练习'})).toBeVisible()
 })
 
 test('local-book deep links restore the requested stored reader page',async({page})=>{

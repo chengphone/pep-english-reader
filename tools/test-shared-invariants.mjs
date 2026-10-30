@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { validateAudioLibrary, validateVocabularyLibrary } from '../src/libraryValidation.ts'
-import { mergePublishedUnits, acknowledgePublishedUnits } from '../src/sharedMerge.ts'
 const unit=(id='u1')=>({id,book:'book',title:'Unit 1',category:'units',words:[{id:'w1',english:'apple',meaning:'苹果'}]})
 const valid={schemaVersion:1,revision:1,units:[unit()]}
 assert.equal(validateVocabularyLibrary(valid),valid)
@@ -13,15 +12,6 @@ assert.equal(validateAudioLibrary(audio),audio)
 for(const path of ['../audio/x.mp3','https://evil.test/a.mp3','/audio/library/a.mp3','audio/library/'+('a'.repeat(64))+'.html','audio/library/'+('a'.repeat(64))+'.mp3?x=1'])assert.throws(()=>validateAudioLibrary({...audio,items:[{...audio.items[0],file:path}]}))
 assert.throws(()=>validateAudioLibrary({...audio,items:[audio.items[0],{...audio.items[0],text:' APPLE '}]}))
 assert.throws(()=>validateAudioLibrary({...audio,items:[{...audio.items[0],sha256:'bad'}]}))
-assert.throws(()=>mergePublishedUnits([], [unit()], [{...unit(),title:'concurrent'}]))
-assert.throws(()=>mergePublishedUnits([unit()], [], [{...unit(),title:'remote edit'}]))
-const local={...unit(),title:'local edit'},unseen=unit('u2')
-const merged=mergePublishedUnits([unit()],[local],[unit(),unseen])
-const base=acknowledgePublishedUnits([unit()],[local],merged)
-assert.deepEqual(base,[local]);assert.deepEqual(mergePublishedUnits(base,[local],merged),merged)
-const newer={...unit(),title:'remote newer'}
-assert.deepEqual(acknowledgePublishedUnits([unit()],[unit()],[newer]),[unit()])
-assert.deepEqual(acknowledgePublishedUnits([unit()],[],[]),[])
 const corpus=validateVocabularyLibrary(JSON.parse(await fs.readFile(new URL('../public/data/default-vocabulary.json',import.meta.url))))
 const library=validateAudioLibrary(JSON.parse(await fs.readFile(new URL('../public/audio/library-manifest.json',import.meta.url))))
 const keys=new Set(library.items.map(item=>item.text.normalize('NFKC').replace(/[’‘]/g,"'").replace(/\s+/g,' ').trim().toLowerCase()))

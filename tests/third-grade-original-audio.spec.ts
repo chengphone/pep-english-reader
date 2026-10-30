@@ -6,9 +6,9 @@ const errors=new WeakMap<Page,string[]>()
 test.beforeEach(async({page})=>{const list:string[]=[];errors.set(page,list);page.on('pageerror',e=>list.push(e.message));await page.goto('./')})
 test.afterEach(async({page})=>expect(errors.get(page)).toEqual([]))
 async function choose(page:Page){
- await page.getByRole('button',{name:'单元默写',exact:true}).click();await page.getByRole('combobox',{name:'选择课本',exact:true}).selectOption('3年级英语上册')
+ await page.getByRole('button',{name:'听写练习',exact:true}).click();await page.getByRole('combobox',{name:'选择课本',exact:true}).selectOption('3年级英语上册')
  await page.getByRole('button',{name:'Unit 1',exact:true}).click();await page.getByRole('button',{name:/选择词句/}).click();await page.getByRole('button',{name:'清空本单元',exact:true}).click();await page.getByRole('checkbox',{name:'听写 name',exact:true}).check()
- await page.getByRole('combobox',{name:'每题播放次数'}).selectOption('1')
+ await page.getByRole('button',{name:'数量与播放设置'}).click();await page.getByRole('combobox',{name:'每题播放次数'}).selectOption('1')
 }
 async function start(page:Page){await page.getByRole('button',{name:'检查声音并开始',exact:true}).click();await page.getByRole('button',{name:'开始听写',exact:true}).first().click()}
 test('textbook recordings override old imported TTS, cache offline, and never synthesize missing originals',async({page,context})=>{
