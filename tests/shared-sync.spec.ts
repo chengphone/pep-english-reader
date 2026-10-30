@@ -148,6 +148,17 @@ test('a genuinely new imported audio publishes when the observed remote file was
  expect(f.commits).toBe(1);expect(f.audio.items[0]).toMatchObject({text:'apple',voice:'导入音频'});expect(f.audio.items[0].file).toMatch(/\.wav$/)
 })
 
+test('malformed audio receipts cannot suppress publishing a local recording',async({page})=>{
+ const f=await fixture(page)
+ await importWav(page)
+ await page.evaluate(async()=>{
+  const db:any=await new Promise(resolve=>{const r=indexedDB.open('pep-shared-sync',1);r.onsuccess=()=>resolve(r.result)})
+  await new Promise<void>(resolve=>{const tx=db.transaction('state','readwrite');tx.objectStore('state').put({baseline:[],pendingRevision:0,audioReceipts:{apple:{digest:'not-a-digest',updatedAt:Date.now(),file:'../../unsafe'}}},'metadata');tx.oncomplete=()=>resolve()});db.close()
+ })
+ await publish(page)
+ expect(f.commits).toBe(1);expect(f.audio.items).toHaveLength(1)
+})
+
 test('expired authorization disconnects the publisher without changing the repository',async({page})=>{
  const f=await fixture(page);await save(page,unit('u1','待发布'));f.fail(401)
  await expect(publish(page)).rejects.toThrow('授权已失效')

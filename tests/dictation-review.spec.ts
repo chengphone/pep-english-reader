@@ -4,7 +4,23 @@ test('custom question count keeps an editable numeric draft',async({page})=>{
  await page.goto('./');await page.getByRole('button',{name:'单元默写',exact:true}).click();await page.getByRole('button',{name:'数量与播放设置'}).click()
  const all=page.getByRole('radio',{name:'全部',exact:true}),custom=page.getByRole('radio',{name:'自定义',exact:true}),input=page.getByRole('spinbutton',{name:'听写数量',exact:true})
  await custom.check();await input.fill('12');await expect(input).toHaveValue('12');await input.press('Backspace');await expect(input).toHaveValue('1');await input.press('Backspace');await expect(input).toHaveValue('');await input.fill('3');await expect(input).toHaveValue('3');await expect(all).not.toBeChecked()
+ await input.fill('0');await expect(input).toHaveValue('1');await input.fill('-5');await expect(input).toHaveValue('1')
+ const max=await input.getAttribute('max');await input.fill('99999');await expect(input).toHaveValue(max!)
  await input.fill('');await input.press('Tab');await expect(input).toHaveValue('1');await expect(all).not.toBeChecked()
+})
+
+test('retrying a missing original audio preflight checks again instead of starting',async({page})=>{
+ let requests=0
+ await page.route('**/audio/library/*.mp3',route=>{requests++;return route.abort()})
+ await page.goto('./');await page.getByRole('button',{name:'单元默写',exact:true}).click()
+ await page.getByRole('combobox',{name:'选择课本'}).selectOption('3年级英语上册')
+ await page.getByRole('button',{name:'检查声音并开始',exact:true}).first().click()
+ await expect(page.getByText('教材原音缺失或无法验证。原音题不会替换为其他声音。')).toBeVisible({timeout:30000})
+ const previous=requests;expect(previous).toBeGreaterThan(0)
+ await page.getByRole('button',{name:'重试检查'}).click()
+ await expect.poll(()=>requests,{timeout:30000}).toBeGreaterThan(previous)
+ await expect(page.getByRole('button',{name:'重试检查'})).toBeVisible({timeout:30000})
+ await expect(page.getByRole('button',{name:'开始听写',exact:true}).first()).toBeDisabled()
 })
 
 test('marking answers and replay actions operate on the same round snapshot',async({page})=>{

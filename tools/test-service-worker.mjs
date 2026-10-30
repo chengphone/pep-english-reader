@@ -22,6 +22,18 @@ test('activation preserves caches belonging to other applications',async()=>{
 test('worker ignores same-origin requests outside the application scope',async()=>{
  const h=harness();assert.equal(await h.request('/another-app/private.json'),undefined)
 })
+test('offline uncached assets and metadata fail rather than returning unrelated cached content',async()=>{
+ const h=harness();await h.cacheFor('another-app').put(base+'missing.js',new Response('wrong'))
+ h.network(async()=>{throw new Error('offline')})
+ assert.equal((await h.request('missing.js')).type,'error')
+ assert.equal((await h.request('data/default-vocabulary.json')).type,'error')
+})
+test('failed online metadata falls back to last successfully cached version',async()=>{
+ const h=harness();h.network(async()=>new Response('valid'))
+ await h.request('audio/library-manifest.json?v=1')
+ h.network(async()=>new Response('server error',{status:503}))
+ assert.equal(await (await h.request('audio/library-manifest.json?v=2')).text(),'valid')
+})
 test('cache quota failure does not discard an online metadata response',async()=>{
  const h=harness();h.quota();h.network(async()=>new Response('{"schemaVersion":1,"units":[]}'))
  const response=await h.request('data/default-vocabulary.json?v=1');assert.equal(response.status,200);assert.match(await response.text(),/schemaVersion/)
