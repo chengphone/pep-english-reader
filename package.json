@@ -9,14 +9,14 @@
     "demo:build": "node tools/create-demo-book.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
-    "predev": "node tools/sync-pdf-assets.mjs",
-    "prebuild": "node tools/sync-pdf-assets.mjs",
+    "predev": "node tools/sync-pdf-assets.mjs && node tools/build-word-image-index.mjs",
+    "prebuild": "node tools/sync-pdf-assets.mjs && node tools/build-word-image-index.mjs",
     "test:hotspots": "node tools/test-hotspots.mjs",
     "test:expressions": "node tools/test-expressions.mjs",
     "test:selection": "node tools/test-dictation-selection.mjs",
     "test:vocabulary": "node tools/test-vocabulary.mjs",
     "test:reader": "node tools/test-reader-layout.mjs",
-    "test": "node --test tools/test-*.mjs",
+    "test": "node --experimental-strip-types --test tools/test-*.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {

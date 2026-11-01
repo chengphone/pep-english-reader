@@ -36,7 +36,8 @@ npm run dev
 - 词条显示教材原文、教材音标和中文释义；常用表达按句显示，不显示音标
 - 播放教材托管原音，可设置重复遍数与语速
 - 页头可在两本已支持教材之间切换；上次使用的教材和单元会记住
-- 三年级上册 Unit 1 配原创插图；六年级多词条目在教材未印完整音标时不显示音标
+- 每个词条配水彩风格生成插图，教材清单中的原创插图仅在生成图缺失时兜底；六年级多词条目在教材未印完整音标时不显示音标
+- 生成插图位于 `public/assets/word-learning/generated/`；新增图片后运行 `node tools/build-word-image-index.mjs`（`npm run dev` 和 `npm run build` 会自动执行）
 
 ## 新阅读界面
 
@@ -54,7 +55,7 @@ This app is published as a static site under `/pep-english-reader/`. The Pages w
 
 ### 回归测试
 
-- `npm test`：热点、词表、常用表达、抽题、页面尺寸和共享数据不变量检查；还会核对已托管音频的文件路径及 SHA-256。
+- `npm test`：热点、词表、常用表达、抽题、页面尺寸、词图覆盖和共享数据不变量检查；还会核对已托管音频的文件路径及 SHA-256。
 - `npm run test:e2e -- --project=chromium`：用本机 Chrome 运行浏览器回归。首次使用其他浏览器前运行 `npx playwright install firefox webkit`，然后可用 `npm run test:e2e` 运行全部浏览器。
 - 浏览器测试使用隔离存储，不会读写真实用户浏览器。
 - GitHub Pages 部署前必须通过基础检查与 Chromium 回归；代码变更还会触发 Firefox/WebKit 回归。
