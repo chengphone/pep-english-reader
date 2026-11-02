@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test'
+import {LOCAL_BOOKS_ENABLED} from '../src/features'
 
 test('application history returns to the shelf and forward restores a reader',async({page})=>{
  await page.route('https://dd.e63.cn/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>E63</title><p>课本</p>'}))
@@ -27,7 +28,20 @@ test('dictation page top navigation returns to the shelf and opens follow-along'
  await page.goBack();await expect(page.getByRole('heading',{name:'听写练习'})).toBeVisible()
 })
 
+test('local textbook entry points are hidden while the feature is disabled',async({page})=>{
+ test.skip(LOCAL_BOOKS_ENABLED,'本地教材功能已启用')
+ await page.goto('./')
+ await expect(page.getByRole('heading',{name:'今天读哪一本？'})).toBeVisible()
+ await expect(page.getByRole('heading',{name:'我的离线教材'})).toHaveCount(0)
+ await expect(page.getByRole('button',{name:'管理课本',exact:true})).toHaveCount(0)
+ await expect(page.getByRole('button',{name:/导入本地教材/})).toHaveCount(0)
+ await page.goto('./?view=local&book=hidden-book&page=0')
+ await expect(page.getByRole('heading',{name:'今天读哪一本？'})).toBeVisible()
+ await expect(page).not.toHaveURL(/view=local/)
+})
+
 test('local-book deep links restore the requested stored reader page',async({page})=>{
+ test.skip(!LOCAL_BOOKS_ENABLED,'本地教材功能暂时屏蔽')
  await page.goto('./')
  await page.evaluate(async()=>{const req=indexedDB.open('pep-reader-v1',2);const db:any=await new Promise(resolve=>{req.onsuccess=()=>resolve(req.result);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('books'))req.result.createObjectStore('books',{keyPath:'id'});if(!req.result.objectStoreNames.contains('units'))req.result.createObjectStore('units',{keyPath:'id'})}});await new Promise<void>(resolve=>{const tx=db.transaction('books','readwrite');tx.objectStore('books').put({id:'deep-book',manifest:{schemaVersion:1,bookId:'deep-book',title:'深链测试教材',publisherId:'pep',pages:[{page:1,image:'page.png',items:[]},{page:2,image:'page.png',items:[]}]},assets:{}});tx.oncomplete=()=>resolve()});db.close()})
  await page.goto('./?view=local&book=deep-book&page=1')

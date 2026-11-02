@@ -1,1 +1,38 @@
-.rename-shade{z-index:1000}.rename-dialog{width:min(460px,calc(100vw - 32px))}.rename-dialog label{display:grid;gap:10px;color:#345b4a}.rename-dialog input{width:100%;min-width:0;padding:12px;border:1px solid #c8d9d0;border-radius:8px;font:inherit;box-sizing:border-box}.rename-dialog [role=alert]{color:#a64035}.rename-dialog .unit-delete-actions{margin-top:24px}.name-edit-button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:40px;padding:6px 10px;background:white;border:1px solid #d4e4dc;border-radius:8px;color:#176b50;font:inherit;font-size:13px;flex-shrink:0}.rename-context{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}.rename-context>.field-label{flex:1;min-width:180px}.practice-rename-actions{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.kids-saved-copy .name-edit-button{margin-top:8px}
+.rename-shade { z-index: 1200; }
+.rename-dialog { width: min(460px, calc(100vw - 32px)); }
+.rename-dialog label { display: grid; gap: 8px; color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+.rename-dialog input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  box-sizing: border-box;
+}
+.rename-dialog input:focus { border-color: var(--green); }
+.rename-dialog [role="alert"] { color: var(--coral); font-size: 12px; margin-top: 8px; }
+.rename-dialog .unit-delete-actions { margin-top: 22px; }
+.name-edit-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.name-edit-button:hover { border-color: var(--green); background: var(--green-wash); color: var(--green); }
+.rename-context { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.rename-context > .field-label { flex: 1; min-width: 180px; }
+.practice-rename-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+.kids-saved-copy .name-edit-button { margin-top: 8px; }
