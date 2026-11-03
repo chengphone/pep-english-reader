@@ -48,7 +48,6 @@ export default function Bookshelf({books,catalog,pendingCatalog=[],onRead,onOnli
      <button className="btn btn-primary" disabled={!heroBook} onClick={()=>heroBook&&onOnline(heroBook.id)}>{heroBook?`继续${grades[grade]}${termLabel(heroBook.term)}`:'浏览在线课本'}</button>
      <button className="btn btn-ghost" onClick={()=>onFollowAlong(followAlongBook(grade))}>去跟读</button>
     </div>
-    <div className="hero-meta"><span className="tag">已接入</span> 7 个年级的 E63 在线课本，点开即可跟读和听写。</div>
    </div>
    <div className="hero-stack" aria-hidden="true">
     {stackBooks.map(book=><div className="stack-cover" key={`stack-${book.id}`}><BookCover book={book}/></div>)}
@@ -56,7 +55,7 @@ export default function Bookshelf({books,catalog,pendingCatalog=[],onRead,onOnli
   </section>
 
   <div className="section-head">
-   <div><h2>在线课本 · E63</h2><p>内容由 E63 提供，点读、翻页和目录在课本内完成。封面为设计示意。</p></div>
+   <h2>在线课本</h2>
    <div className="grade-tabs" role="group" aria-label="选择年级">{Object.entries(grades).map(([n,label])=><button key={n} className={`grade-tab ${grade===Number(n)?'selected':''}`} aria-pressed={grade===Number(n)} onClick={()=>{setGrade(Number(n));try{localStorage.setItem('pep:shelf-grade',n)}catch{}}}>{label}</button>)}</div>
   </div>
 
