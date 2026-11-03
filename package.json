@@ -2,6 +2,14 @@
   "name": "english-textbook-reader",
   "private": true,
   "version": "0.0.0",
+  "description": "人教版 PEP 小学英语在线点读、跟读与听写 PWA",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chengphone/pep-english-reader.git"
+  },
+  "homepage": "https://chengphone.github.io/pep-english-reader/",
+  "author": "chengphone",
   "type": "module",
   "scripts": {
     "dev": "vite",

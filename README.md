@@ -1,71 +1,89 @@
-# 英语课本点读
+# 英语课本点读 · PEP English Reader
 
-面向人教 PEP 小学英语教材的本地优先 PWA 原型。首屏提供 E63 五年级上册在线入口；导入符合格式的 PEP 教材 ZIP 后，可在本机显示页面、点读热区、顺序连读并离线使用。教材文件不会上传。
+人教版 PEP 小学英语的在线点读、跟读与听写 PWA。
 
-## 开发
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Deploy](https://github.com/chengphone/pep-english-reader/actions/workflows/pages.yml/badge.svg)](https://github.com/chengphone/pep-english-reader/actions/workflows/pages.yml)
+
+在线体验：https://chengphone.github.io/pep-english-reader/
+
+> 在线课本由 E63（dd.e63.cn）提供，本项目不打包或再分发教材 PDF 与页面图片。教材文字、音频、插图及商标的权利归各自权利人所有，详见 [NOTICE.md](NOTICE.md)。
+
+## 功能
+
+- **在线书架**：3–9 年级、上下册，按年级切换，封面按年级与版次区分。
+- **在线点读**：嵌入 E63 阅读器，课本内的点读、翻页、目录由 E63 控制。
+- **跟读学习**：三年级上册、六年级上册（PEP 新版），单元词汇 / 常用表达，教材原音、音标、释义、重复遍数与语速。
+- **听写练习**：按教材 / 范围 / 单元选择，全部随机或自定义抽取，检查声音后开始，交卷后对答案。
+- **本地教材**：PDF / ZIP 导入与离线阅读代码保留，当前通过 `src/features.ts` 的 `LOCAL_BOOKS_ENABLED` 开关暂时关闭；已导入数据仍保留在本机。
+- **PWA**：可安装，离线缓存应用外壳。
+
+## 快速开始
 
 ```sh
 npm install
 npm run dev
 ```
 
-部署到 HTTPS 后可安装为 PWA。E63 在线教材由 `dd.e63.cn` 提供，需要联网；应用的离线阅读仅适用于完整导入本机的教材包。浏览器清理站点数据会清除本地教材。
+打开终端输出的地址（默认 `http://localhost:5173/pep-english-reader/`）。
 
-## 教材资源
+## 构建与部署
 
-在线入口指向 E63 的人教 PEP 五年级上册候选资源（书目 ID `tape5a_002113`，页面标注新课标版）。使用前请按纸质书 ISBN、版次确认版本。本站不打包或再分发教材 PDF、页面图片和配套音频。
+```sh
+npm run build
+npm run preview
+```
 
-本地导入格式见 [docs/BOOK_PACKAGE.md](docs/BOOK_PACKAGE.md)。
+推送到 `main` 后，`.github/workflows/pages.yml` 会运行测试、构建并部署到 GitHub Pages。站点基路径为 `/pep-english-reader/`；如需部署到其他路径，修改 `vite.config.ts` 的 `base`。
 
-## 听写练习
+## 项目结构
 
-听写页只使用网站内置词表和从书架导入的 PDF 末尾词表；页面不再提供资料管理、词表校对或音频导入。
+| 路径 | 说明 |
+| --- | --- |
+| `src/` | React 应用：书架、跟读、听写、阅读器 |
+| `public/` | 静态资源：音频、插图、PDF.js、OCR 数据 |
+| `tools/` | 构建、数据生成与校验脚本 |
+| `tests/` | Playwright 端到端测试 |
+| `docs/` | 教材包格式说明 |
+| `design/` | 设计参考稿 |
 
-- 分三步选择教材、听写范围（单元单词 / 整册词汇 / 常用表达）和单元
-- 可展开“选择词句”，支持搜索、全选、清空，以及全部随机或自定义数量抽取
-- 右侧汇总已选数量、抽取数量与每题遍数，检查声音后开始
-- 默认每题播放三遍、手动进入下一题；答案只在完成并点击“对答案”后显示
-- 教材词条使用网站托管原音；PDF 导入词条使用本机已有音频或浏览器朗读兜底
-- 打开页面时会自动检查网站词表更新；离线时继续使用本机已保存内容
+## 配置
 
-## 跟读学习
+- `src/features.ts`：`LOCAL_BOOKS_ENABLED` 控制本地教材入口；改为 `true` 恢复导入与深链。
+- `src/onlineCatalog.ts`：在线课本目录与待上线书目。
+- `vite.config.ts`：部署基路径 `base`。
+- `src/index.css`：Google Fonts 引入；如需完全离线或隐私部署，可改为本地字体。
 
-跟读学习支持三年级上册和六年级上册（PEP新版），可从书架顶部「跟读学习」或在线阅读器「更多」进入。
+## 测试
 
-- 按「单元词汇 / 常用表达」切换内容，用顶部单元标签（手机为下拉）切换单元
-- 词条显示教材原文、教材音标和中文释义；常用表达按句显示，不显示音标
-- 播放教材托管原音，可设置重复遍数与语速
-- 页头可在两本已支持教材之间切换；上次使用的教材和单元会记住
-- 每个词条配水彩风格生成插图，教材清单中的原创插图仅在生成图缺失时兜底；六年级多词条目在教材未印完整音标时不显示音标
-- 生成插图位于 `public/assets/word-learning/generated/`；新增图片后运行 `node tools/build-word-image-index.mjs`（`npm run dev` 和 `npm run build` 会自动执行）
+```sh
+npm test
+npm run test:e2e -- --project=chromium
+```
 
-## 新阅读界面
+Firefox / WebKit 回归需先安装浏览器：
 
-在线课本和本地课本共用顶部标题、返回书架及听写练习入口，不再显示旧侧栏。本地阅读默认适合宽度，较长页面可在中央区域上下滚动；选“适合整页”可一次看完本页。支持输入 PDF 页码跳转、左右箭头键翻页、缩放、点读区域提示、全屏和原有阅读进度。
+```sh
+npx playwright install firefox webkit
+npm run test:e2e
+```
 
-PDF 原文件保存在 IndexedDB，页面由 PDF.js 原样渲染；透明点读层与同一纸张容器同步缩放。渲染使用独立临时 Canvas，完成后再显示，快速翻页会取消过期任务。重排页面尺寸不会改动原教材、词表或音频。
+GitHub Actions 在推送和 PR 时运行基础检查与 Chromium 回归，并在代码变更时运行 Firefox / WebKit 回归。
 
-底部播放栏显示选中的英文和中文释义，可编辑保存翻译。阅读发音优先级为教材包音频 → 已导入本地词句 MP3 → 浏览器英文朗读。支持暂停继续、循环、调速及整页顺序朗读，翻页或离开阅读页会停止队列。浏览器朗读不保证所有设备都能离线使用。
+## 数据与隐私
 
-在线阅读仍嵌入 E63，外层可切换教材、重试、专注阅读、全屏或新窗口打开；课本内部的点读、翻页、目录由 E63 控制。在线资源是否可用取决于网络和原站。本地阅读不依赖 E63。检查页面尺寸逻辑：`npm run test:reader`。
+- 本地教材、阅读进度、听写记录保存在浏览器 IndexedDB / localStorage，不上传服务器。
+- 在线课本通过 iframe 加载 E63，受其服务与隐私政策约束。
+- `public/audio/library/` 中的练习录音用于本站演示；fork 部署前请确认你对音频拥有相应权利，或替换为自己的录音。
 
-### GitHub Pages
+## 数据说明（六年级 PEP 新版）
 
-This app is published as a static site under `/pep-english-reader/`. The Pages workflow builds `dist` on each push to `main`. The public `public/audio/library-manifest.json` and `public/audio/library/` host the 156 user-provided practice MP3s; the reader fetches and saves matching audio locally on first use, so students do not need to import that audio ZIP. Their textbooks and learning progress remain on each device. No custom domain is configured.
+在线教材 `tape6a_002015` 的听写资料独立命名为“六年级英语上册 · PEP新版（E63 002015）”，对照印刷页 81–84 的单元词汇与 89–91 的常用表达整理，共 6 组单词、6 组常用表达。旧版六年级资料与新版分开保存；同版下册在 E63 暂不可用，书架以禁用卡片显示“同版资源待上线”。
 
-### 回归测试
+## 许可证
 
-- `npm test`：热点、词表、常用表达、抽题、页面尺寸、词图覆盖和共享数据不变量检查；还会核对已托管音频的文件路径及 SHA-256。
-- `npm run test:e2e -- --project=chromium`：用本机 Chrome 运行浏览器回归。首次使用其他浏览器前运行 `npx playwright install firefox webkit`，然后可用 `npm run test:e2e` 运行全部浏览器。
-- 浏览器测试使用隔离存储，不会读写真实用户浏览器。
-- GitHub Pages 部署前必须通过基础检查与 Chromium 回归；代码变更还会触发 Firefox/WebKit 回归。
+源代码以 [MIT](LICENSE) 许可证开源。教材内容、练习录音、插图与商标不在 MIT 授权范围内，详见 [NOTICE.md](NOTICE.md)。
 
-当前全面边缘场景审查仍在进行中。通过已有测试不代表全部设备和所有边缘场景已经完成验证。
+## 贡献
 
-
-### 六年级 PEP 新版听写资料
-
-在线教材 `tape6a_002015`（E63 标记“人教PEP版”，91个在线页面）的听写资料独立命名为“六年级英语上册 · PEP新版（E63 002015）”。已对照印刷页81–84的单元词汇和89–91的常用表达整理，保留跨页单元，分别为6组单词、6组常用表达，共144个词汇条目和54条表达。每条均关联托管音频；已有同文本音频继续复用，新增录音来源记录在音频清单的 `sourceUrl` 中。各单元单词数为26、25、20、17、29、27，表达数为9、10、9、6、9、11。与旧版六年级资料分别保存。
-
-
-在线书架保留三年级原有 `tape3a_002013` / `tape3b_002013`。六年级只显示用户指定的新版 `tape6a_002015`；同版下册在 E63 目录及初始化接口暂不可用，因此以禁用卡片显示“同版资源待上线”，不会替换为旧版下册。旧版“6年级英语上册”听写资料已从共享清单移除；新版12组保留。公共音频仍保留，避免删除其他资料复用的录音。
+欢迎提交 Issue 和 PR。提交前请运行 `npm test` 与 Chromium E2E；涉及教材数据或音频的改动，请同时说明来源与授权情况。
