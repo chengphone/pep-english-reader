@@ -5,22 +5,24 @@ import type {VocabularyWord} from './vocabularyExtraction'
 type AudioWord=Pick<VocabularyWord,'english'|'audio'>
 type CachedAudio={file:string;bytes:ArrayBuffer;mime:string}
 const pending=new Map<string,Promise<Blob|undefined>>()
+let dbPromise:Promise<IDBDatabase>|undefined
 function openDb(){
- return new Promise<IDBDatabase>((resolve,reject)=>{
+ dbPromise??=new Promise<IDBDatabase>((resolve,reject)=>{
   const request=indexedDB.open('pep-textbook-audio',1);let expired=false
   const timer=setTimeout(()=>{expired=true;reject(new Error('教材音频存储读取超时'))},5000)
   request.onupgradeneeded=()=>request.result.createObjectStore('audio',{keyPath:'file'})
   request.onsuccess=()=>{clearTimeout(timer);if(expired)request.result.close();else resolve(request.result)}
   request.onerror=()=>{clearTimeout(timer);reject(request.error)}
- })
+ }).catch(error=>{dbPromise=undefined;throw error})
+ return dbPromise
 }
 async function cached(file:string){
  const db=await openDb()
- try{return await new Promise<CachedAudio|undefined>((resolve,reject)=>{const tx=db.transaction('audio'),request=tx.objectStore('audio').get(file);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);tx.onabort=()=>reject(tx.error)})}finally{db.close()}
+ return await new Promise<CachedAudio|undefined>((resolve,reject)=>{const tx=db.transaction('audio'),request=tx.objectStore('audio').get(file);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);tx.onabort=()=>reject(tx.error)})
 }
 async function store(file:string,blob:Blob){
  const value={file,bytes:await blob.arrayBuffer(),mime:blob.type},db=await openDb()
- try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction('audio','readwrite');tx.objectStore('audio').put(value);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error??new Error('原音保存失败'));tx.onabort=()=>reject(tx.error??new Error('原音保存已中止'))})}finally{db.close()}
+ await new Promise<void>((resolve,reject)=>{const tx=db.transaction('audio','readwrite');tx.objectStore('audio').put(value);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error??new Error('原音保存失败'));tx.onabort=()=>reject(tx.error??new Error('原音保存已中止'))})
 }
 async function validBytes(bytes:ArrayBuffer,digest:string){
  const result=await crypto.subtle.digest('SHA-256',bytes)
@@ -60,13 +62,13 @@ export async function readMaterialAudios(words:AudioWord[]):Promise<Map<string,W
  const plain=unique.filter(word=>!word.audio),bound=unique.filter(word=>word.audio)
  const result=plain.length?await readWordAudios(plain.map(word=>word.english)):new Map<string,WordAudio>()
  let next=0
- await Promise.all(Array.from({length:Math.min(4,bound.length)},async()=>{while(next<bound.length){const word=bound[next++],record=await original(word);if(record)result.set(record.key,record)}}))
+ await Promise.all(Array.from({length:Math.min(8,bound.length)},async()=>{while(next<bound.length){const word=bound[next++],record=await original(word);if(record)result.set(record.key,record)}}))
  return result
 }
 export async function resolveDictationAudios(words:AudioWord[]):Promise<(WordAudio|undefined)[]>{
  const result:Array<WordAudio|undefined>=new Array(words.length)
  let next=0
- await Promise.all(Array.from({length:Math.min(4,words.length)},async()=>{while(next<words.length){const index=next++,word=words[index];if(word.audio){result[index]=await original(word);continue}result[index]=(await readWordAudios([word.english])).get(audioKey(word.english))}}))
+ await Promise.all(Array.from({length:Math.min(8,words.length)},async()=>{while(next<words.length){const index=next++,word=words[index];if(word.audio){result[index]=await original(word);continue}result[index]=(await readWordAudios([word.english])).get(audioKey(word.english))}}))
  return result
 }
 export async function exportMaterialAudio(words:AudioWord[]){

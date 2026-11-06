@@ -10,7 +10,9 @@ export default function DictationSession({words,title,repeat,audio,allowFallback
  const [source,setSource]=useState('正在读取音频…'),[allowFallback,setAllowFallback]=useState(initialFallback),[settingsOpen,setSettingsOpen]=useState(false)
  const run=useRef(0),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),utterance=useRef<SpeechSynthesisUtterance|null>(null),playQuestionRef=useRef<(at:number,alreadyPlayed?:number,fallback?:boolean,retryMissing?:boolean)=>Promise<void>>(async()=>{})
  const player=useRef<HTMLAudioElement|null>(null),objectUrl=useRef('')
- function stop(){run.current++;clearTimeout(timer.current);if(player.current){player.current.onended=null;player.current.onerror=null;player.current.pause();player.current.removeAttribute('src');player.current.load();player.current=null}if(objectUrl.current){URL.revokeObjectURL(objectUrl.current);objectUrl.current=''}if(utterance.current){utterance.current.onend=null;utterance.current.onerror=null;utterance.current=null}window.speechSynthesis?.cancel()}
+ const SILENT_AUDIO='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
+ function audioPlayer(){player.current??=new Audio();return player.current}
+ function stop(){run.current++;clearTimeout(timer.current);if(player.current){player.current.onended=null;player.current.onerror=null;player.current.pause()}if(objectUrl.current){URL.revokeObjectURL(objectUrl.current);objectUrl.current=''}if(utterance.current){utterance.current.onend=null;utterance.current.onerror=null;utterance.current=null}window.speechSynthesis?.cancel()}
  async function playQuestion(at:number,alreadyPlayed=0,fallback=allowFallback,retryMissing=false){
   stop();setIndex(at);setPlayed(alreadyPlayed)
   if(at>=words.length){setStatus('finished');return}
@@ -21,14 +23,14 @@ export default function DictationSession({words,title,repeat,audio,allowFallback
   let record:WordAudio|undefined
   try{record=audio[at]??(!words[at].audio||retryMissing?(await resolveDictationAudios([words[at]]))[0]:undefined)}catch{fail('本地音频读取失败，请返回检查音频。');return}
   if(token!==run.current)return
-  if(record){objectUrl.current=URL.createObjectURL(record.blob);player.current=new Audio(objectUrl.current);setSource(record.voice.startsWith('网站音频')?record.voice:'本地音频 · '+record.voice)}
+  if(record){objectUrl.current=URL.createObjectURL(record.blob);const audio=audioPlayer();audio.src=objectUrl.current;setSource(record.voice.startsWith('网站音频')?record.voice:'本地音频 · '+record.voice)}
   else if(words[at].audio){fail('本题教材原音未能加载，请联网后重试；不会使用备用合成语音。');return}
   else if(!fallback){fail('本题缺少本地音频，请返回“管理词表”导入，或开启备用朗读。');return}
   else if(!('speechSynthesis'in window)){fail('当前浏览器没有备用语音，请导入本地音频。');return}
   else setSource('浏览器备用朗读 · 发音因设备而异')
   function say(){
    if(token!==run.current)return
-   if(record&&player.current){const audio=player.current;audio.currentTime=0;audio.onended=ended;audio.onerror=()=>fail('本地音频播放失败，请重听或重新导入。');void audio.play().catch(()=>fail('播放未启动，请点击重听。'));return}
+   if(record&&player.current){const audio=player.current;audio.onended=ended;audio.onerror=()=>fail('本地音频播放失败，请重听或重新导入。');void audio.play().catch(()=>fail('播放未启动，请点击重听。'));return}
    const u=new SpeechSynthesisUtterance(words[at].english);u.lang='en-US';u.rate=.85
    const voices=window.speechSynthesis.getVoices();u.voice=voices.find(v=>v.lang==='en-US'&&/Aria|Jenny|Samantha|Google US English/.test(v.name))??voices.find(v=>v.lang==='en-US')??null
    utterance.current=u;u.onend=ended;u.onerror=()=>fail('备用语音播放失败，请导入本地音频。');try{window.speechSynthesis.speak(u)}catch{fail('备用语音播放失败')}
@@ -36,11 +38,11 @@ export default function DictationSession({words,title,repeat,audio,allowFallback
   say()
  }
  playQuestionRef.current=playQuestion
- function begin(){if(started)return;setStarted(true);void playQuestion(0)}
+ function begin(){if(started)return;setStarted(true);const audio=audioPlayer();audio.muted=true;audio.src=SILENT_AUDIO;void audio.play().catch(()=>{}).finally(()=>{audio.muted=false});void playQuestion(0)}
  function advance(){void playQuestionRef.current(index+1)}
  function togglePause(){if(status==='paused'){if(played<repeat)void playQuestion(index,played);else setStatus('writing')}else{stop();setStatus('paused')}}
  useEffect(()=>stop,[])
- useEffect(()=>{if(status!=='writing'||!autoNext)return;setRemaining(waitSeconds);const token=run.current;const countdown=setInterval(()=>setRemaining(n=>Math.max(0,n-1)),1000);const next=setTimeout(()=>{if(token===run.current)void playQuestionRef.current(index+1)},waitSeconds*1000);return()=>{clearInterval(countdown);clearTimeout(next)}},[status,autoNext,waitSeconds,index])
+ useEffect(()=>{if(status!=='writing'||!autoNext)return;setRemaining(waitSeconds);const startedAt=Date.now();const countdown=setInterval(()=>{const left=Math.max(0,waitSeconds-Math.ceil((Date.now()-startedAt)/1000));setRemaining(left);if(left<=0){clearInterval(countdown);void playQuestionRef.current(index+1)}},250);return()=>clearInterval(countdown)},[status,autoNext,waitSeconds,index])
  const completed=status==='finished'?words.length:status==='writing'?index+1:index
  const percent=100*completed/Math.max(1,words.length)
  const bars=Array.from({length:24},(_,i)=>({height:12+Math.abs(Math.sin(i*1.7))*28,delay:-i*0.07}))

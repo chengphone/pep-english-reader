@@ -10,7 +10,7 @@ export function normalizeWordImageKey(word:string){return word.trim().toLowerCas
 
 export function generatedWordImage(word:string){
  const key=normalizeWordImageKey(word),file=aliases[key]??key
- return file&&wordImageFiles.has(file)?`assets/word-learning/generated/${file}.png`:undefined
+ return file&&wordImageFiles.has(file)?`assets/word-learning/generated/${file}.webp`:undefined
 }
 
 export function wordImage(word:string,illustration?:WordIllustration):WordImage|undefined{

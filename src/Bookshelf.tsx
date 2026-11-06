@@ -10,7 +10,7 @@ type SavedBook={id:string;title:string;pages:number;lastPage:number}
 const grades:Record<number,string>={3:'三年级',4:'四年级',5:'五年级',6:'六年级',7:'七年级',8:'八年级',9:'九年级'}
 const coverArtNames:Record<number,[string,string]>={3:['school','friend'],4:['apple','cat'],5:['dog','book-fair'],6:['friend','school'],7:['great-wall','museum'],8:['earth','ocean'],9:['space','great-wall']}
 const coverTones:Record<number,string>={3:'#0E5B43',4:'#8C6420',5:'#3C73B4',6:'#4B7D6B',7:'#A8532F',8:'#4A5A8C',9:'#6B4A7D'}
-const coverArt=(book:{grade:number;term:'a'|'b'})=>`${import.meta.env.BASE_URL}assets/word-learning/generated/${(coverArtNames[book.grade]??coverArtNames[3])[book.term==='b'?1:0]}.png`
+const coverArt=(book:{grade:number;term:'a'|'b'})=>`${import.meta.env.BASE_URL}assets/word-learning/generated/${(coverArtNames[book.grade]??coverArtNames[3])[book.term==='b'?1:0]}.webp`
 const coverTone=(book:{grade:number})=>coverTones[book.grade]??'#0E5B43'
 const termLabel=(term:'a'|'b')=>term==='a'?'上册':'下册'
 const editionShort=(edition?:string)=>!edition?'PEP':edition.includes('新课标')?'新课标':edition.includes('老版')?'老版':edition.includes('初中')?'初中':edition.includes('新版')?'新版':'PEP'
@@ -75,7 +75,7 @@ export default function Bookshelf({books,catalog,pendingCatalog=[],onRead,onOnli
 
   <section className="feature-band">
    <div className="feature-copy"><span className="feature-tag">跟读学习</span><h2>把单词读顺，再读整句</h2><p>教材原音、音标和中文释义放在同一张卡片上，重复遍数和语速都能调。孩子点一下就能听，不用来回找。</p><button className="btn btn-primary" onClick={()=>onFollowAlong(followAlongBook(grade))}>打开跟读学习</button></div>
-   <div className="feature-art"><img src={`${import.meta.env.BASE_URL}assets/word-learning/generated/friend.png`} alt="两个正在读书的孩子插画"/></div>
+   <div className="feature-art"><img src={`${import.meta.env.BASE_URL}assets/word-learning/generated/friend.webp`} alt="两个正在读书的孩子插画"/></div>
   </section>
 
   {LOCAL_BOOKS_ENABLED&&<section className="offline" aria-labelledby="my-books-heading">
