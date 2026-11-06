@@ -11,7 +11,7 @@ function openDb(){
   const request=indexedDB.open('pep-textbook-audio',1);let expired=false
   const timer=setTimeout(()=>{expired=true;reject(new Error('教材音频存储读取超时'))},5000)
   request.onupgradeneeded=()=>request.result.createObjectStore('audio',{keyPath:'file'})
-  request.onsuccess=()=>{clearTimeout(timer);if(expired)request.result.close();else resolve(request.result)}
+  request.onsuccess=()=>{clearTimeout(timer);if(expired){request.result.close();return}request.result.onversionchange=()=>{request.result.close();dbPromise=undefined};resolve(request.result)}
   request.onerror=()=>{clearTimeout(timer);reject(request.error)}
  }).catch(error=>{dbPromise=undefined;throw error})
  return dbPromise

@@ -44,7 +44,7 @@ test('shelf entry lands directly on Unit 1 with exact words, textbook phonetics 
  const tabs=page.getByRole('navigation',{name:'选择单元'});await expect(tabs.getByRole('button')).toHaveCount(wordSection.units.length);await expect(tabs.getByRole('button',{name:'Unit 1',exact:true})).toHaveAttribute('aria-pressed','true')
  await expect(page).toHaveURL(/unit=hosted-default%3Aunits%3A7/)
  await expect(page.locator('.followalong-word-grid button').allTextContents()).resolves.toEqual(unit.words.map((word:any,index:number)=>`${index+1}${word.english}`))
- const images=page.locator('.followalong-card img');await expect(images).toHaveCount(1);await expect(images).toHaveAttribute('src',/assets\/word-learning\/generated\/name\.png$/);await expect(images).toHaveAttribute('alt','name 插画');await expect.poll(()=>images.evaluate(image=>(image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+ const images=page.locator('.followalong-card img');await expect(images).toHaveCount(1);await expect(images).toHaveAttribute('src',/assets\/word-learning\/generated\/name\.webp$/);await expect(images).toHaveAttribute('alt','name 插画');await expect.poll(()=>images.evaluate(image=>(image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
  await expect(page.locator('.followalong-phonetic')).toHaveText(unitEntry.words[0].phonetic);await expect(page.locator('.followalong-phonetic')).toHaveText('/neɪm/');await expect(page.locator('.followalong-meaning')).toContainText(unit.words[0].meaning)
  await page.getByRole('button',{name:'播放 name',exact:true}).click();await expect.poll(()=>audioRequests).toHaveLength(1);expect(audioRequests[0]).toBe(audioFileFor(unitId,'name'))
  await expect.poll(()=>page.evaluate(()=>((window as any).__playedAudio as string[]).length)).toBe(1)
