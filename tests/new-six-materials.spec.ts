@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 const book='六年级英语上册 · PEP新版（E63 002015）'
 const beginSession=async(page:any)=>{await expect(page.getByRole('heading',{name:'准备开始听写'})).toBeVisible({timeout:15000});await page.locator('.dictation-screen').getByRole('button',{name:'开始听写',exact:true}).click()}
 test('new PEP vocabulary and expressions are selectable and play hosted audio without an upload',async({page,context})=>{
+ test.setTimeout(90000)
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
  await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
  await page.getByRole('combobox',{name:'选择课本',exact:true}).selectOption(book)

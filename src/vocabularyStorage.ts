@@ -36,10 +36,12 @@ export function seedHostedVocabulary(){
  return syncing
 }
 async function refreshSharedVocabulary(){
+ let fallback:VocabularyUnit[]|undefined
  try{
   const response=await fetch(import.meta.env.BASE_URL+'data/default-vocabulary.json?version='+Date.now(),{cache:'no-store'})
   if(!response.ok)throw new Error('Hosted practice vocabulary unavailable')
   const data=validateVocabularyLibrary(await response.json())
+  fallback=data.units
   const metadata=await readSharedMetadata()
   const pending=metadata.pendingRevision
   if(Number(data.revision??0)<pending)return loadUnits()
@@ -67,7 +69,7 @@ async function refreshSharedVocabulary(){
   })}finally{db.close()}
   await updateSharedMetadata(value=>({...value,baseline:[...baseline.values()],pendingRevision:0}))
  }catch(error){console.warn('Shared vocabulary unavailable; using local materials',error)}
- return loadUnits()
+ try{return await loadUnits()}catch{return fallback??[]}
 }
 
 // Names are display metadata. Keep stable unit/book/word IDs so audio and progress survive.

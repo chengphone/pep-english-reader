@@ -42,7 +42,7 @@ export default function DictationSession({words,title,repeat,audio,allowFallback
  function advance(){void playQuestionRef.current(index+1)}
  function togglePause(){if(status==='paused'){if(played<repeat)void playQuestion(index,played);else setStatus('writing')}else{stop();setStatus('paused')}}
  useEffect(()=>stop,[])
- useEffect(()=>{if(status!=='writing'||!autoNext)return;setRemaining(waitSeconds);const startedAt=Date.now();const countdown=setInterval(()=>{const left=Math.max(0,waitSeconds-Math.ceil((Date.now()-startedAt)/1000));setRemaining(left);if(left<=0){clearInterval(countdown);void playQuestionRef.current(index+1)}},250);return()=>clearInterval(countdown)},[status,autoNext,waitSeconds,index])
+ useEffect(()=>{if(status!=='writing'||!autoNext)return;setRemaining(waitSeconds);const startedAt=Date.now();const countdown=setInterval(()=>{const left=Math.max(0,waitSeconds-Math.ceil((Date.now()-startedAt)/1000));setRemaining(current=>current===left?current:left);if(left<=0){clearInterval(countdown);void playQuestionRef.current(index+1)}},250);return()=>clearInterval(countdown)},[status,autoNext,waitSeconds,index])
  const completed=status==='finished'?words.length:status==='writing'?index+1:index
  const percent=100*completed/Math.max(1,words.length)
  const bars=Array.from({length:24},(_,i)=>({height:12+Math.abs(Math.sin(i*1.7))*28,delay:-i*0.07}))
