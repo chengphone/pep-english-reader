@@ -109,6 +109,19 @@ test('expression pages show textbook sentences, translations and one-to-one audi
  await context.close()
 })
 
+test('dictation from an expression page preselects the expression unit',async({browser})=>{
+ const context=await browser.newContext();const page=await context.newPage()
+ await page.goto('./?view=followalong&book=tape3a_002013&unit=hosted-default%3Aexpressions%3A1')
+ await expect(page.locator('.followalong-card')).toBeVisible({timeout:25000})
+ await page.getByRole('navigation',{name:'学习导航'}).getByRole('button',{name:'听写练习'}).click()
+ await expect(page.getByRole('heading',{name:'听写练习'})).toBeVisible()
+ await expect(page.getByRole('combobox',{name:'选择课本',exact:true})).toHaveValue('3年级英语上册')
+ await expect(page.getByRole('button',{name:'常用表达',exact:true})).toHaveAttribute('aria-pressed','true')
+ await expect(page.getByRole('button',{name:'Unit 1',exact:true})).toHaveAttribute('aria-pressed','true')
+ await expect(page.locator('.practice-summary-line')).toContainText('已选 9 句表达')
+ await context.close()
+})
+
 test('sixth-grade follow-along loads textbook words and can switch books',async({browser})=>{
  const context=await browser.newContext();const page=await context.newPage()
  await mockAudio(page)

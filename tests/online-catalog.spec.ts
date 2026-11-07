@@ -90,6 +90,19 @@ test('the online reader starts in the offline state when opened without a networ
  await expect.poll(()=>page.locator('iframe').evaluate(frame=>(frame as any).__offlineMarker)).toBeUndefined()
 })
 
+test('reconnecting after a mid-session drop keeps the open reader',async({page,context})=>{
+ await page.route('https://dd.e63.cn/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>E63 测试页</title>'}))
+ await page.goto('./');await page.getByRole('button',{name:'四年级',exact:true}).click();await page.getByRole('button',{name:'打开 四年级上册 人教 PEP',exact:true}).click()
+ await expect(page.locator('iframe')).toHaveAttribute('src','https://dd.e63.cn/reader.html?book=tape4a_002013')
+ await page.locator('iframe').evaluate(frame=>{(frame as any).__sessionMarker='kept'})
+ await context.setOffline(true)
+ await expect(page.getByText('当前没有网络，在线课本暂时无法加载。')).toBeVisible()
+ await context.setOffline(false)
+ await expect(page.getByText('当前没有网络，在线课本暂时无法加载。')).toBeHidden()
+ await page.waitForTimeout(500)
+ expect(await page.locator('iframe').evaluate(frame=>(frame as any).__sessionMarker)).toBe('kept')
+})
+
 test('the online reader menu closes on Escape and outside clicks',async({page})=>{
  await page.route('https://dd.e63.cn/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>E63 测试页</title>'}))
  await page.goto('./');await page.getByRole('button',{name:'四年级',exact:true}).click();await page.getByRole('button',{name:'打开 四年级上册 人教 PEP',exact:true}).click()

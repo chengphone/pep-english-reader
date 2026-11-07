@@ -9,10 +9,10 @@ export default function OnlineReader({catalog,selectedId,onBack,onDictation,onFo
  const fullscreen=useReadingFullscreen(),menuButton=useRef<HTMLButtonElement>(null),menu=useRef<HTMLDivElement>(null)
  const [focus,setFocus]=useState(false),[menuOpen,setMenuOpen]=useState(false),[reload,setReload]=useState(0),[loading,setLoading]=useState(true),[slow,setSlow]=useState(false),[offline,setOffline]=useState(!navigator.onLine)
  const selected=catalog.find(book=>book.id===selectedId)??catalog[0],url=`https://dd.e63.cn/reader.html?book=${encodeURIComponent(selected.id)}`
- const wasOffline=useRef(offline)
+ const wasOffline=useRef(offline),openedOffline=useRef(offline)
  useEffect(()=>{setLoading(true);setSlow(false);const timer=setTimeout(()=>setSlow(true),12000);return()=>clearTimeout(timer)},[selectedId,reload])
  useEffect(()=>{const update=()=>setOffline(!navigator.onLine);window.addEventListener('online',update);window.addEventListener('offline',update);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}},[])
- useEffect(()=>{if(wasOffline.current&&!offline)setReload(value=>value+1);wasOffline.current=offline},[offline])
+ useEffect(()=>{if(wasOffline.current&&!offline&&openedOffline.current)setReload(value=>value+1);wasOffline.current=offline},[offline])
  useEffect(()=>{if(!menuOpen)return;const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){setMenuOpen(false);menuButton.current?.focus()}};const outside=(event:PointerEvent)=>{if(!menu.current?.contains(event.target as Node)&&!menuButton.current?.contains(event.target as Node))setMenuOpen(false)};document.addEventListener('keydown',key,true);document.addEventListener('pointerdown',outside);return()=>{document.removeEventListener('keydown',key,true);document.removeEventListener('pointerdown',outside)}},[menuOpen])
  async function leave(action:()=>void){setMenuOpen(false);await fullscreen.leave();action()}
  function retry(){setMenuOpen(false);setReload(value=>value+1)}

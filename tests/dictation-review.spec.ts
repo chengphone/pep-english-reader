@@ -86,6 +86,29 @@ test('plain words without hosted audio can use the browser fallback',async({page
  await expect(page.locator('.dictation-audio-source')).toContainText('浏览器备用朗读',{timeout:15000})
 })
 
+test('re-listening retries hosted word audio that failed at preflight',async({page})=>{
+ test.setTimeout(120000)
+ let blocked=true
+ await page.route('**/audio/library/*.mp3',route=>blocked?route.abort():route.continue())
+ await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
+ await page.getByRole('combobox',{name:'选择课本',exact:true}).selectOption('六年级英语上册 · PEP新版（E63 002015）')
+ await page.getByRole('button',{name:/选择词句/}).click()
+ await page.getByRole('button',{name:'Unit 1',exact:true}).click()
+ await page.getByRole('button',{name:'清空本单元',exact:true}).click()
+ await page.getByRole('checkbox',{name:'听写 kilometre',exact:true}).check()
+ await page.getByRole('combobox',{name:'每题播放次数'}).selectOption('1')
+ await page.getByRole('button',{name:'检查声音并开始',exact:true}).click()
+ await expect(page.getByText(/普通词音频缺失/)).toBeVisible({timeout:30000})
+ await page.getByRole('button',{name:'先开始，缺音频时再处理'}).click()
+ await expect(page.getByRole('heading',{name:'准备开始听写'})).toBeVisible({timeout:15000})
+ await page.locator('.dictation-screen').getByRole('button',{name:'开始听写',exact:true}).click()
+ await expect(page.getByText(/发音失败，请重听或手动下一题/)).toBeVisible({timeout:15000})
+ blocked=false
+ await page.getByRole('button',{name:/重听 1 遍/}).click()
+ await expect(page.getByText(/已读 1 \/ 1 遍/)).toBeVisible({timeout:20000})
+ await expect(page.locator('.dictation-audio-source')).toContainText('网站音频')
+})
+
 test('searching and toggling results updates the selected count',async({page})=>{
  await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
  await expect(page.getByRole('combobox',{name:'抽取数量'})).toBeEnabled({timeout:15000})
