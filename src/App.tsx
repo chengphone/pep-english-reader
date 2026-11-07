@@ -28,8 +28,8 @@ function assetUrl(book: LocalBook | null, path?: string) { if (!book || !path) r
 function dbOpen() { return new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(DB_NAME, 2); r.onupgradeneeded = () => { if(!r.result.objectStoreNames.contains('books'))r.result.createObjectStore('books', { keyPath: 'id' }); if(!r.result.objectStoreNames.contains('units'))r.result.createObjectStore('units',{keyPath:'id'}) }; r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) }
 function mimeType(path: string) { const ext = path.split('.').pop()?.toLowerCase(); return ({ svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg' } as Record<string,string>)[ext ?? ''] ?? 'application/octet-stream' }
 async function allBooks(): Promise<LocalBook[]> { const db = await dbOpen(); const out = await new Promise<LocalBook[]>((resolve, reject) => { const r = db.transaction('books').objectStore('books').getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }); db.close(); return out }
-async function putBook(book: LocalBook) { const db = await dbOpen(); await new Promise<void>((resolve, reject) => { const tx = db.transaction('books', 'readwrite'); tx.objectStore('books').put(book); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error) }); db.close() }
-async function dropBook(id: string) { const db = await dbOpen(); await new Promise<void>((resolve, reject) => { const tx = db.transaction('books', 'readwrite'); tx.objectStore('books').delete(id); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error) }); db.close() }
+async function putBook(book: LocalBook) { const db = await dbOpen(); try { await new Promise<void>((resolve, reject) => { const tx = db.transaction('books', 'readwrite'); tx.objectStore('books').put(book); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error) }) } finally { db.close() } }
+async function dropBook(id: string) { const db = await dbOpen(); try { await new Promise<void>((resolve, reject) => { const tx = db.transaction('books', 'readwrite'); tx.objectStore('books').delete(id); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error) }) } finally { db.close() } }
 
 export default function App() {
   const updateReady=useSyncExternalStore(subscribeAppUpdates,appUpdateReady)
@@ -43,7 +43,9 @@ export default function App() {
   const historyIndex=useRef(0),booksRef=useRef(books)
   booksRef.current=books
   useEffect(()=>{const keyHandler=(event:PopStateEvent)=>{const next=navigationTarget(event);if(!next)return;historyIndex.current=next.idx??0;restoreRoute(next.route??{kind:'shelf'})};window.addEventListener('popstate',keyHandler);const initial=readAppHistory(history.state);historyIndex.current=initial?.idx??0;const firstRoute=visibleRoute(initial?.route??routeFromUrl(new URL(location.href)));setRoute(firstRoute);if(firstRoute.kind==='vocab'){setMode('vocab');setActive(null);setOnline(false)}else if(firstRoute.kind==='online'){setMode('shelf');setOnlineId(firstRoute.bookId);setOnline(true);setActive(null)}else if(firstRoute.kind==='followalong'){setMode('shelf');setOnlineId(firstRoute.bookId);setOnline(false);setActive(null)}else if(firstRoute.kind==='shelf'){setMode('shelf');setActive(null);setOnline(false)}history.replaceState(writeAppState(firstRoute,historyIndex.current), '', writeRouteUrl(firstRoute));setHistoryReady(true);return()=>window.removeEventListener('popstate',keyHandler)},[])
-  useEffect(()=>{if(updateReady&&mode==='shelf'&&!active&&!online&&!help)reloadUpdatedApp()},[updateReady,mode,active,online,help])
+  // Apply an app update automatically only when the shelf is idle. Reloading during
+  // follow-along practice or a long PDF import would discard the user's work.
+  useEffect(()=>{if(updateReady&&mode==='shelf'&&!active&&!online&&!help&&route.kind!=='followalong'&&messageKind!=='progress')reloadUpdatedApp()},[updateReady,mode,active,online,help,route.kind,messageKind])
   const playback=useReaderPlayback(active,setSelected,repeat,speed)
   const stop=playback.stop
   const page = active?.manifest.pages[pageIdx]
@@ -61,6 +63,7 @@ export default function App() {
   function goPage(next: number) { if (!active) return; stop();setSelected(null); const index = Math.max(0, Math.min(active.manifest.pages.length - 1, next)); setPageIdx(index); const localRoute:AppRoute={kind:'local',bookId:active.id,page:index};if(history.state?.key===routeKey){history.replaceState(writeAppState(localRoute,historyIndex.current),'',writeRouteUrl(localRoute));setRoute(localRoute)}const saved = { ...active, lastPage: index }; setActive(saved); setBooks(current => current.map(book => book.id === saved.id ? saved : book)); void putBook(saved).catch(()=>notify('阅读进度暂未保存到本机。','error')) }
   async function importFile(file?: File) {
     if (!file) return
+    notify('正在导入教材…','progress')
     try {
       if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){await importPdf(file);return}
       const { unzipSync, strFromU8 } = await import('fflate')

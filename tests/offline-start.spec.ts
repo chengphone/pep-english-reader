@@ -50,6 +50,43 @@ test('the dictation vocabulary survives an offline reload',async({page,context})
   await context.setOffline(false)
 })
 
+test('updated book data replaces a stale service worker copy while online',async({page})=>{
+  test.setTimeout(90000)
+  await prepareOfflineShell(page)
+  await page.evaluate(async()=>{
+    const url=location.origin+'/pep-english-reader/data/word-learning/books.json'
+    for(const name of await caches.keys()){
+      const cache=await caches.open(name)
+      const paths=(await cache.keys()).map(request=>new URL(request.url).pathname)
+      if(!paths.some(path=>path.endsWith('/index.html')))continue
+      await cache.put(url,new Response(JSON.stringify([{bookId:'stale-book',title:'缓存旧目录'}]),{headers:{'Content-Type':'application/json'}}))
+    }
+  })
+  await page.goto('./?view=followalong&book=tape3a_002013',{waitUntil:'networkidle'})
+  await expect(page.getByLabel('选择跟读教材')).toHaveValue('tape3a_002013')
+  const options=page.getByLabel('选择跟读教材').locator('option')
+  await expect(options.filter({hasText:'三年级英语上册'})).toHaveCount(1)
+  await expect(options.filter({hasText:'缓存旧目录'})).toHaveCount(0)
+})
+
+test('an arriving update waits for follow-along practice and applies on the shelf',async({page})=>{
+  test.setTimeout(90000)
+  await prepareOfflineShell(page)
+  // Reload so the update listener sees an already-controlled page, as returning
+  // users do; only then does a new worker count as an update.
+  await page.reload({waitUntil:'networkidle'})
+  await page.waitForFunction(()=>!!navigator.serviceWorker?.controller,{timeout:30000})
+  await page.goto('./?view=followalong&book=tape3a_002013',{waitUntil:'networkidle'})
+  await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:30000})
+  await page.evaluate(()=>navigator.serviceWorker.dispatchEvent(new Event('controllerchange')))
+  await expect(page.getByRole('button',{name:'新版已就绪，点击刷新应用'})).toBeVisible()
+  await page.waitForTimeout(800)
+  expect(page.url()).not.toContain('app-update=')
+  await expect(page.locator('.followalong-word-grid')).toBeVisible()
+  await page.getByRole('button',{name:'书架',exact:true}).click()
+  await page.waitForURL(/app-update=/,{timeout:15000})
+})
+
 test('the follow-along unit survives an offline reload',async({page,context})=>{
   test.setTimeout(120000)
   await prepareOfflineShell(page)

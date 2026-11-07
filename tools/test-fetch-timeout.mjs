@@ -16,5 +16,9 @@ assert.deepEqual(await fetchWithTimeout('https://example.test/ok',{},response=>r
 globalThis.fetch=async()=>{throw new Error('offline')}
 await assert.rejects(()=>fetchWithTimeout('https://example.test/fail',{},response=>response.json(),200),/offline/)
 
+// Browsers reject unreachable requests with an English TypeError; surface it in Chinese.
+globalThis.fetch=async()=>{throw new TypeError('Load failed')}
+await assert.rejects(()=>fetchWithTimeout('https://example.test/offline',{},response=>response.json(),200),/网络请求失败，请检查网络后重试/)
+
 globalThis.fetch=originalFetch
-console.log('Passed: body-read timeout, successful JSON reads, and non-timeout errors propagate')
+console.log('Passed: body-read timeout, successful JSON reads, Chinese network errors, and other errors propagate')
