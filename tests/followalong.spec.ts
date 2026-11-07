@@ -161,6 +161,25 @@ test('follow-along pause and resume keep the word and apply the new speed',async
  await context.close()
 })
 
+test('pausing between repeats continues the same round instead of replaying it',async({browser})=>{
+ const context=await browser.newContext();const page=await context.newPage()
+ await page.addInitScript(()=>{Object.defineProperty(window,'indexedDB',{get(){throw new Error('IndexedDB blocked')}});const stats={plays:0};(window as any).__audioStats=stats;window.Audio=class{src='';playbackRate=1;onended:any=null;onerror:any=null;constructor(src=''){this.src=src}pause(){}play(){stats.plays++;setTimeout(()=>this.onended?.(),50);return Promise.resolve()}} as any})
+ let requests=0
+ await page.route('**/audio/library/**',async route=>{requests++;if(requests>1)await new Promise(resolve=>setTimeout(resolve,2000));await route.continue()})
+ await page.goto('./?view=followalong&book=tape3a_002013')
+ await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:25000})
+ await page.getByRole('combobox',{name:'重复'}).selectOption('2')
+ await page.getByRole('button',{name:'播放单词',exact:true}).click()
+ await expect.poll(()=>page.evaluate(()=>(window as any).__audioStats.plays)).toBe(1)
+ await expect.poll(()=>requests).toBe(2)
+ await page.getByRole('button',{name:'暂停',exact:true}).click()
+ await expect(page.locator('.play-state')).toHaveText('已暂停')
+ await page.getByRole('button',{name:'播放单词',exact:true}).click()
+ await expect(page.locator('.play-state')).toHaveText('点播放，听教材原音',{timeout:15000})
+ expect(await page.evaluate(()=>(window as any).__audioStats.plays)).toBe(2)
+ await context.close()
+})
+
 test('double-clicking play starts only one playback',async({browser})=>{
  const context=await browser.newContext();const page=await context.newPage()
  await page.addInitScript(()=>{const stats={plays:0};(window as any).__audioStats=stats;window.Audio=class{src='';playbackRate=1;onended=null;onerror=null;constructor(src=''){this.src=src}play(){stats.plays++;return Promise.resolve()}pause(){}} as any})
