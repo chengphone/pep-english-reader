@@ -13,7 +13,7 @@ function harness(){
  }}
  const caches={open:async name=>cacheFor(name),keys:async()=>[...stores.keys()],delete:async name=>stores.delete(name),match:async request=>{for(const name of stores.keys()){const found=await cacheFor(name).match(request);if(found)return found}}}
  const self={location:new URL(base+'sw.js'),addEventListener:(name,handler)=>handlers[name]=handler,skipWaiting:()=>{},clients:{claim:async()=>{}}}
- vm.runInNewContext(source,{self,caches,URL,Response,fetch:request=>fetchImpl(request)})
+ vm.runInNewContext(source,{self,caches,URL,Response,AbortController,setTimeout,clearTimeout,fetch:(request,init)=>fetchImpl(request,init)})
  return {stores,cacheFor,network(fn){fetchImpl=fn},quota(){failWrites=true},async activate(){handlers.activate({waitUntil:p=>pending.push(p)});await Promise.all(pending)},async request(path,navigation=false){let response;const waits=[];const request=new Request(new URL(path,base));if(navigation)Object.defineProperty(request,'mode',{value:'navigate'});handlers.fetch({request,respondWith:p=>response=p,waitUntil:p=>waits.push(p)});if(!response)return undefined;const result=await response;await Promise.all(waits);return result}}
 }
 test('activation preserves caches belonging to other applications',async()=>{
@@ -48,6 +48,14 @@ test('metadata uses a canonical cache key for offline requests with new query pa
  const response=await h.request('data/default-vocabulary.json?v=2');assert.equal(await response.text(),'online')
 })
 
+test('cached data survives an app update so follow-along still works offline',async()=>{
+ const h=harness();h.network(async()=>json('catalog'));await h.request('data/word-learning/books.json')
+ assert([...h.stores.keys()].some(name=>name.startsWith('pep-reader-data-')),'data must be stored outside the versioned shell cache')
+ await h.activate()
+ h.network(async()=>{throw new Error('offline')})
+ assert.equal(await (await h.request('data/word-learning/books.json')).text(),'catalog')
+})
+
 test('online word-learning data refreshes a cached copy instead of serving it first',async()=>{
  const h=harness();h.network(async()=>json('old catalog'));await h.request('data/word-learning/books.json')
  h.network(async()=>json('new catalog'))
@@ -66,6 +74,18 @@ test('hashed build assets are served from cache without a network request',async
  const h=harness();await h.cacheFor('pep-reader-shell-v3-word-audio').put(base+'assets/index-abc.js',new Response('cached-js'))
  h.network(async()=>{throw new Error('unexpected network')})
  assert.equal(await (await h.request('assets/index-abc.js')).text(),'cached-js')
+})
+
+test('a stalled data request falls back to the cached copy instead of waiting for the network',async()=>{
+ const h=harness();h.network(async()=>json('cached catalog'));await h.request('data/word-learning/books.json')
+ let aborted=false
+ h.network((request,init)=>new Promise((resolve,reject)=>{
+  init?.signal?.addEventListener('abort',()=>{aborted=true;reject(Object.assign(new Error('aborted'),{name:'AbortError'}))},{once:true})
+ }))
+ const started=Date.now()
+ assert.equal(await (await h.request('data/word-learning/books.json')).text(),'cached catalog')
+ assert.equal(aborted,true)
+ assert.ok(Date.now()-started<8000)
 })
 
 test('an HTML captive-portal answer does not replace cached data for offline use',async()=>{

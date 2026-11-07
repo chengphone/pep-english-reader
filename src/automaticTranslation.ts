@@ -4,7 +4,30 @@ export function translationKey(text:string){return text.normalize('NFKC').toLowe
 const glossaryCache=new Map<string,Promise<Record<string,string>>>()
 const modelCache=new Map<string,string>()
 let translatorPromise:Promise<any>|undefined
-async function loadGlossary(book:string){if(!glossaryCache.has(book))glossaryCache.set(book,new Promise((resolve)=>{const request=indexedDB.open('pep-reader-v1',2);request.onerror=()=>resolve({});request.onsuccess=()=>{const db=request.result;const r=db.transaction('units').objectStore('units').getAll();r.onsuccess=()=>{const glossary:Record<string,string>={};for(const unit of r.result){if(unit.book!==book)continue;for(const word of unit.words??[])if(word.english&&word.meaning)glossary[translationKey(word.english)]=word.meaning}db.close();resolve(glossary)};r.onerror=()=>{db.close();resolve({})}}}));return glossaryCache.get(book)!}
+async function loadGlossary(book:string){
+ if(!glossaryCache.has(book))glossaryCache.set(book,new Promise((resolve)=>{
+  let settled=false
+  const timer=setTimeout(()=>finish({}),5000)
+  function finish(glossary:Record<string,string>){if(settled)return;settled=true;clearTimeout(timer);resolve(glossary)}
+  try{
+   const request=indexedDB.open('pep-reader-v1',2)
+   // The DB may not exist yet (no local book or hosted vocabulary imported). Create
+   // the same stores the rest of the app expects, otherwise the transaction below
+   // throws and this promise would never settle.
+   request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains('books'))db.createObjectStore('books',{keyPath:'id'});if(!db.objectStoreNames.contains('units'))db.createObjectStore('units',{keyPath:'id'})}
+   request.onerror=()=>finish({})
+   request.onsuccess=()=>{
+    const db=request.result
+    try{
+     const r=db.transaction('units').objectStore('units').getAll()
+     r.onsuccess=()=>{const glossary:Record<string,string>={};for(const unit of r.result){if(unit.book!==book)continue;for(const word of unit.words??[])if(word.english&&word.meaning)glossary[translationKey(word.english)]=word.meaning}db.close();finish(glossary)}
+     r.onerror=()=>{db.close();finish({})}
+    }catch{db.close();finish({})}
+   }
+  }catch{finish({})}
+ }))
+ return glossaryCache.get(book)!
+}
 export function invalidateTranslationGlossary(book:string){glossaryCache.delete(book)}
 export async function automaticallyTranslate(text:string,book:string):Promise<TranslationResult>{
  const key=translationKey(text);if(!key)return{};

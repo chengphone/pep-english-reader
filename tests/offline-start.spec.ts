@@ -55,12 +55,8 @@ test('updated book data replaces a stale service worker copy while online',async
   await prepareOfflineShell(page)
   await page.evaluate(async()=>{
     const url=location.origin+'/pep-english-reader/data/word-learning/books.json'
-    for(const name of await caches.keys()){
-      const cache=await caches.open(name)
-      const paths=(await cache.keys()).map(request=>new URL(request.url).pathname)
-      if(!paths.some(path=>path.endsWith('/index.html')))continue
-      await cache.put(url,new Response(JSON.stringify([{bookId:'stale-book',title:'缓存旧目录'}]),{headers:{'Content-Type':'application/json'}}))
-    }
+    const cache=await caches.open('pep-reader-data-v1')
+    await cache.put(url,new Response(JSON.stringify([{bookId:'stale-book',title:'缓存旧目录'}]),{headers:{'Content-Type':'application/json'}}))
   })
   await page.goto('./?view=followalong&book=tape3a_002013',{waitUntil:'networkidle'})
   await expect(page.getByLabel('选择跟读教材')).toHaveValue('tape3a_002013')

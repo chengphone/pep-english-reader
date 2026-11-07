@@ -53,6 +53,21 @@ test('reloading the vocabulary recovers after a transient network failure',async
  await expect(page.getByRole('combobox',{name:'抽取数量'})).toBeEnabled()
 })
 
+test('retrying the vocabulary still matches the book entered from the online reader',async({page})=>{
+ test.setTimeout(90000)
+ let fail=true
+ await page.route('**/data/default-vocabulary.json*',route=>fail?route.fulfill({status:500,body:'unavailable'}):route.continue())
+ await page.route('https://dd.e63.cn/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>E63 测试页</title><p>在线教材</p>'}))
+ await page.goto('./');await page.getByRole('button',{name:'三年级',exact:true}).click()
+ await page.getByRole('button',{name:'打开 三年级上册 人教 PEP',exact:true}).click()
+ await page.getByRole('button',{name:'更多阅读操作'}).click();await page.getByRole('menuitem',{name:'听写练习',exact:true}).click()
+ await expect(page.getByText('词表暂时无法读取，请检查网络后重试。')).toBeVisible({timeout:20000})
+ fail=false
+ await page.getByRole('button',{name:'重新读取词表',exact:true}).click()
+ await expect(page.getByRole('combobox',{name:'选择课本',exact:true})).toHaveValue('3年级英语上册',{timeout:20000})
+ await expect(page.getByRole('button',{name:'Unit 1',exact:true})).toBeVisible()
+})
+
 test('a stalled vocabulary request times out with a retry',async({page})=>{
  test.setTimeout(60000)
  await page.clock.install()

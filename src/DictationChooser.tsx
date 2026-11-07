@@ -18,8 +18,10 @@ export default function DictationChooser({units,unitsLoaded,onStart,entryContext
   if(!unitsLoaded)return
   initialized.current=true
   if(!entryContext||JSON.stringify(contextApplied.current)===JSON.stringify(entryContext))return
+  // Without units there is nothing to match yet; leave the context unapplied so a
+  // successful retry can still preselect the book the user came from.
+  if(units.length===0){setBook('');return}
   contextApplied.current=entryContext
-  if(entryContext.kind==='online'&&units.length===0){setBook('');return}
   const candidates=entryContext.kind==='local'?units.filter(item=>item.book===entryContext.title):entryContext.bookId==='tape3a_002013'?units.filter(item=>item.book==='3年级英语上册'):entryContext.bookId==='tape6a_002015'?units.filter(item=>item.book==='六年级英语上册 · PEP新版（E63 002015）'):[]
   const matches=[...new Set(candidates.map(item=>item.book))]
   if(entryContext.kind==='followalong'){
