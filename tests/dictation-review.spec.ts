@@ -5,6 +5,9 @@ test('custom question count keeps an editable numeric draft',async({page})=>{
  await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
  const count=page.getByRole('combobox',{name:'抽取数量'}),input=page.getByRole('spinbutton',{name:'听写数量',exact:true})
  await expect(count).toHaveValue('all');await count.selectOption('custom');await expect(input).toBeVisible()
+ // Wait for the vocabulary units to load; before that the input still clamps
+ // the draft to one word, which races with the data arriving on slow CI machines.
+ await expect.poll(async()=>Number(await input.getAttribute('max'))).toBeGreaterThan(1)
  await input.fill('12');await expect(input).toHaveValue('12');await input.press('Backspace');await expect(input).toHaveValue('1');await input.fill('3');await expect(input).toHaveValue('3');await expect(count).toHaveValue('custom')
  await input.fill('0');await expect(input).toHaveValue('1');await input.fill('-5');await expect(input).toHaveValue('1')
  const max=await input.getAttribute('max');await input.fill('99999');await expect(input).toHaveValue(max!)
