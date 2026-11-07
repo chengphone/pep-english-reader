@@ -9,7 +9,7 @@ export function routeFromUrl(url:URL):AppRoute {
  const app=url.searchParams.get('view'),id=url.searchParams.get('book')
  if(app==='online'&&id)return {kind:'online',bookId:id}
  if(app==='followalong'&&id)return {kind:'followalong',bookId:id,unitId:url.searchParams.get('unit')??''}
- if(app==='local'&&id)return {kind:'local',bookId:id,page:Math.max(0,Number(url.searchParams.get('page'))||0)}
+ if(app==='local'&&id){const requested=Number(url.searchParams.get('page'));const page=Number.isFinite(requested)?Math.max(0,Math.floor(requested)):0;return {kind:'local',bookId:id,page}}
  if(app==='vocab')return {kind:'vocab'}
  return {kind:'shelf'}
 }

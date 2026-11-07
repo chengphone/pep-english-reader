@@ -6,8 +6,11 @@ import type { VocabularyUnit } from './vocabularyExtraction'
 function openDb() {
  return new Promise<IDBDatabase>((resolve,reject)=>{
   const request=indexedDB.open('pep-reader-v1',2)
+  let expired=false
+  const timer=setTimeout(()=>{expired=true;reject(new Error('词表存储读取超时'))},5000)
   request.onupgradeneeded=()=>{for(const name of ['books','units'])if(!request.result.objectStoreNames.contains(name))request.result.createObjectStore(name,{keyPath:'id'})}
-  request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)
+  request.onsuccess=()=>{clearTimeout(timer);if(expired){request.result.close();return}const db=request.result;db.onversionchange=()=>db.close();resolve(db)}
+  request.onerror=()=>{clearTimeout(timer);reject(request.error)}
  })
 }
 export async function loadUnits(options:{strict?:boolean}={}):Promise<VocabularyUnit[]> {

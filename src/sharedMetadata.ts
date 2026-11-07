@@ -11,7 +11,7 @@ function migrateLegacy(){
  try{const legacy=JSON.parse(localStorage.getItem('pep-shared-vocabulary-baseline-v2')??'[]');if(Array.isArray(legacy))result.baseline=legacy.map(normalizeUnitWordIds).filter(validVocabularyUnit);const pending=Number(localStorage.getItem('pep-shared-pending-revision'));if(Number.isFinite(pending)&&pending>=0)result.pendingRevision=pending}catch{/* A corrupt or unavailable legacy cache must not block the library. */}
  return result
 }
-function open(){return new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('pep-shared-sync',1);request.onupgradeneeded=()=>request.result.createObjectStore('state');request.onsuccess=()=>{const db=request.result;db.onversionchange=()=>db.close();resolve(db)};request.onerror=()=>reject(request.error)})}
+function open(){return new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('pep-shared-sync',1);let expired=false;const timer=setTimeout(()=>{expired=true;reject(new Error('同步状态读取超时'))},5000);request.onupgradeneeded=()=>request.result.createObjectStore('state');request.onsuccess=()=>{clearTimeout(timer);if(expired){request.result.close();return}const db=request.result;db.onversionchange=()=>db.close();resolve(db)};request.onerror=()=>{clearTimeout(timer);reject(request.error)}})}
 export async function updateSharedMetadata(update:(value:SharedMetadata)=>SharedMetadata):Promise<SharedMetadata>{
  const db=await open()
  try{return await new Promise((resolve,reject)=>{

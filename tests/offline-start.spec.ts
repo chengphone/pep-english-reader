@@ -2,8 +2,7 @@ import {test,expect} from '@playwright/test'
 
 test.use({baseURL:'http://127.0.0.1:5181/pep-english-reader/'})
 
-test('the app shell still starts from the service worker cache when offline',async({page,context})=>{
-  test.setTimeout(90000)
+async function prepareOfflineShell(page:any){
   await page.goto('./',{waitUntil:'networkidle'})
   await page.waitForFunction(()=>!!navigator.serviceWorker?.controller,{timeout:30000})
   await page.waitForFunction(async()=>{
@@ -14,11 +13,39 @@ test('the app shell still starts from the service worker cache when offline',asy
     }
     return false
   },{timeout:30000})
-  await expect(page.getByRole('heading',{name:'今天读哪一本？'})).toBeVisible()
+}
 
+test('the app shell still starts from the service worker cache when offline',async({page,context})=>{
+  test.setTimeout(90000)
+  await prepareOfflineShell(page)
+  await expect(page.getByRole('heading',{name:'今天读哪一本？'})).toBeVisible()
   await context.setOffline(true)
   await page.reload({waitUntil:'domcontentloaded',timeout:30000})
   await expect(page.getByRole('heading',{name:'今天读哪一本？'})).toBeVisible({timeout:20000})
   await expect(page.getByRole('navigation',{name:'学习导航'})).toBeVisible()
+  await context.setOffline(false)
+})
+
+test('an offline deep link still boots the app shell',async({page,context})=>{
+  test.setTimeout(90000)
+  await prepareOfflineShell(page)
+  await context.setOffline(true)
+  await page.goto('./?view=vocab',{waitUntil:'domcontentloaded',timeout:30000})
+  await expect(page.getByRole('heading',{name:'听写练习'})).toBeVisible({timeout:20000})
+  await expect(page.getByRole('navigation',{name:'学习导航'})).toBeVisible()
+  await context.setOffline(false)
+})
+
+test('the dictation vocabulary survives an offline reload',async({page,context})=>{
+  test.setTimeout(120000)
+  await prepareOfflineShell(page)
+  await page.goto('./?view=vocab',{waitUntil:'networkidle'})
+  const count=page.getByRole('combobox',{name:'抽取数量'})
+  await expect(count).toBeEnabled({timeout:30000})
+  await context.setOffline(true)
+  await page.reload({waitUntil:'domcontentloaded',timeout:30000})
+  await expect(page.getByRole('heading',{name:'听写练习'})).toBeVisible({timeout:20000})
+  await expect(count).toBeEnabled({timeout:30000})
+  await expect(page.getByRole('combobox',{name:'选择课本'})).not.toHaveValue('')
   await context.setOffline(false)
 })

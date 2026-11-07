@@ -20,9 +20,11 @@ function restoreAudio(value:StoredWordAudio|undefined):WordAudio|undefined{
 function openAudioDb() {
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open('pep-word-audio', 1)
+    let expired=false
+    const timer=setTimeout(()=>{expired=true;reject(new Error('单词音频存储读取超时'))},5000)
     request.onupgradeneeded = () => request.result.createObjectStore('audio', { keyPath: 'key' })
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
+    request.onsuccess = () => {clearTimeout(timer);if(expired){request.result.close();return}const db=request.result;db.onversionchange=()=>db.close();resolve(db)}
+    request.onerror = () => {clearTimeout(timer);reject(request.error)}
   })
 }
 export async function readWordAudios(texts: string[]): Promise<Map<string, WordAudio>> {

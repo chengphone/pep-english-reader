@@ -14,6 +14,33 @@ test('custom question count keeps an editable numeric draft',async({page})=>{
  await input.fill('');await input.press('Tab');await expect(input).toHaveValue('1');await expect(count).toHaveValue('custom')
 })
 
+test('the custom count stays disabled until the vocabulary units load',async({page})=>{
+ test.setTimeout(60000)
+ await page.route('**/data/default-vocabulary.json*',async route=>{
+  await new Promise(resolve=>setTimeout(resolve,3000))
+  await route.continue()
+ })
+ await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
+ const count=page.getByRole('combobox',{name:'抽取数量'}),input=page.getByRole('spinbutton',{name:'听写数量',exact:true})
+ await expect(count).toBeDisabled()
+ await expect(count).toBeEnabled({timeout:15000})
+ await count.selectOption('custom')
+ await expect(input).toBeEnabled()
+ await input.fill('12');await expect(input).toHaveValue('12')
+})
+
+test('switching to a smaller unit clamps the custom count',async({page})=>{
+ await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
+ const count=page.getByRole('combobox',{name:'抽取数量'}),input=page.getByRole('spinbutton',{name:'听写数量',exact:true})
+ await expect(count).toBeEnabled({timeout:15000})
+ await count.selectOption('custom')
+ await input.fill('12');await expect(input).toHaveValue('12')
+ await page.getByRole('button',{name:'常用表达',exact:true}).click()
+ await expect(input).toHaveValue('9')
+ await page.getByRole('button',{name:'Unit 2',exact:true}).click()
+ await expect(input).toHaveValue('5')
+})
+
 test('retrying a missing original audio preflight checks again instead of starting',async({page})=>{
  let requests=0
  await page.route('**/audio/library/*.mp3',route=>{requests++;return route.abort()})

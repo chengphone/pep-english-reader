@@ -41,6 +41,15 @@ test('original audio is still available online when local storage is blocked',as
  },original)
  expect(size).toBeGreaterThan(100)
 })
+test('hosted audio still loads when the local audio database never responds',async({page})=>{
+ test.setTimeout(60000)
+ const size=await page.evaluate(async()=>{
+  const hanging={open(){return {onupgradeneeded:null,onsuccess:null,onerror:null}}}
+  Object.defineProperty(window,'indexedDB',{get(){return hanging},configurable:true})
+  const m=await import('/pep-english-reader/src/wordAudio.ts');return (await m.readWordAudios(['name'])).get('name')?.blob.size
+ })
+ expect(size).toBeGreaterThan(100)
+})
 test('invalid or mismatched original audio never falls back to a generic TTS recording',async({page})=>{
  await page.route('**/'+original.audio.file,route=>route.fulfill({contentType:'text/html',body:'not an audio file'}))
  const sizes=await page.evaluate(async word=>{

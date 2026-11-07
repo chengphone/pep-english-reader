@@ -68,3 +68,13 @@ test('third-grade books keep their previous IDs and sixth-grade old editions sta
  await page.getByRole('button',{name:'打开 六年级上册 人教PEP新版',exact:true}).click()
  await expect(page.locator('iframe')).toHaveAttribute('src','https://dd.e63.cn/reader.html?book=tape6a_002015')
 })
+
+test('an unknown online book id falls back to the first catalog book for follow-along',async({page})=>{
+ await page.route('https://dd.e63.cn/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>E63 测试页</title>'}))
+ await page.goto('./?view=online&book=not-a-book')
+ await expect(page.locator('iframe')).toHaveAttribute('src','https://dd.e63.cn/reader.html?book=tape3a_002013')
+ await page.getByRole('button',{name:'更多阅读操作'}).click()
+ await page.getByRole('menuitem',{name:'跟读学习',exact:true}).click()
+ await expect(page.getByLabel('选择跟读教材')).toHaveValue('tape3a_002013')
+ await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:25000})
+})
