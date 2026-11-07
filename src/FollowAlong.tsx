@@ -72,7 +72,7 @@ export default function FollowAlong({bookId,unitId,onBack,onSelectUnit,onSelectB
      </div>
      <p className="play-state" aria-live="polite">{playing?'正在播放教材原音':pausedRef.current?'已暂停':'点播放，听教材原音'}</p>
      <button className="followalong-replay" onClick={()=>{stop();void run()}}><RotateCcw size={16}/>重听</button>
-     <div className="followalong-settings"><label>重复<select value={repeat} onChange={event=>setRepeat(Number(event.target.value))}><option value={1}>1 遍</option><option value={2}>2 遍</option><option value={3}>3 遍</option></select></label><label>语速<select value={rate} onChange={event=>setRate(Number(event.target.value))}><option value={0.7}>慢速</option><option value={0.85}>较慢</option><option value={1}>正常</option></select></label></div>
+     <div className="followalong-settings"><label>重复<select value={repeat} onChange={event=>setRepeat(Number(event.target.value))}><option value={1}>1 遍</option><option value={2}>2 遍</option><option value={3}>3 遍</option></select></label><label>语速<select value={rate} onChange={event=>{const value=Number(event.target.value);setRate(value);if(audioRef.current)audioRef.current.playbackRate=value}}><option value={0.7}>慢速</option><option value={0.85}>较慢</option><option value={1}>正常</option></select></label></div>
     </div>
    </div>
    <button className="followalong-bottom-next" disabled={index===items.length-1} onClick={()=>{stop();setIndex(value=>value+1)}}>下一个<ArrowRight size={17}/></button>

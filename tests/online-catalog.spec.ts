@@ -85,7 +85,9 @@ test('the online reader starts in the offline state when opened without a networ
  await page.getByRole('button',{name:'四年级',exact:true}).click()
  await page.getByRole('button',{name:'打开 四年级上册 人教 PEP',exact:true}).click()
  await expect(page.getByText('当前没有网络，在线课本暂时无法加载。')).toBeVisible()
+ await page.locator('iframe').evaluate(frame=>{(frame as any).__offlineMarker='stale'})
  await context.setOffline(false)
+ await expect.poll(()=>page.locator('iframe').evaluate(frame=>(frame as any).__offlineMarker)).toBeUndefined()
 })
 
 test('the online reader menu closes on Escape and outside clicks',async({page})=>{
