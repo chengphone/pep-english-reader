@@ -83,6 +83,18 @@ test('a failed follow-along playback reports an error and is not cached',async({
   expect(stored).toBe(0)
 })
 
+test('a stalled hosted audio download fails instead of hanging forever',async({page})=>{
+  test.setTimeout(60000)
+  await page.clock.install()
+  await page.route('**/audio/library/*.mp3',()=>new Promise(()=>{}))
+  await page.goto('./?view=followalong&book=tape6a_002015')
+  await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:25000})
+  await page.getByRole('button',{name:'播放单词'}).click()
+  await expect(page.locator('.play-state')).toHaveText('正在播放教材原音')
+  await page.clock.fastForward(20000)
+  await expect(page.locator('.followalong-error')).toContainText('教材原音暂时无法播放',{timeout:10000})
+})
+
 test('follow-along still works when the book catalog fails',async({page})=>{
   test.setTimeout(60000)
   await page.route('**/data/word-learning/books.json',route=>route.fulfill({status:500,body:''}))

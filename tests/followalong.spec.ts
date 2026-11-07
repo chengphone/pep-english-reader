@@ -161,6 +161,18 @@ test('follow-along pause and resume keep the word and apply the new speed',async
  await context.close()
 })
 
+test('repeats reuse one audio element so iOS can keep playing without new gestures',async({browser})=>{
+ const context=await browser.newContext();const page=await context.newPage()
+ await page.addInitScript(()=>{const stats={plays:0,instances:0};(window as any).__audioStats=stats;window.Audio=class{src='';playbackRate=1;onended:any=null;onerror:any=null;constructor(src=''){stats.instances++;this.src=src}pause(){}play(){stats.plays++;setTimeout(()=>this.onended?.(),0);return Promise.resolve()}} as any})
+ await page.goto('./?view=followalong&book=tape3a_002013')
+ await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:25000})
+ await page.getByRole('combobox',{name:'重复'}).selectOption('3')
+ await page.getByRole('button',{name:'播放单词',exact:true}).click()
+ await expect(page.locator('.play-state')).toHaveText('点播放，听教材原音',{timeout:15000})
+ expect(await page.evaluate(()=>(window as any).__audioStats)).toMatchObject({plays:3,instances:1})
+ await context.close()
+})
+
 test('pausing between repeats continues the same round instead of replaying it',async({browser})=>{
  const context=await browser.newContext();const page=await context.newPage()
  await page.addInitScript(()=>{Object.defineProperty(window,'indexedDB',{get(){throw new Error('IndexedDB blocked')}});const stats={plays:0};(window as any).__audioStats=stats;window.Audio=class{src='';playbackRate=1;onended:any=null;onerror:any=null;constructor(src=''){this.src=src}pause(){}play(){stats.plays++;setTimeout(()=>this.onended?.(),50);return Promise.resolve()}} as any})

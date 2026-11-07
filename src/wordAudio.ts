@@ -5,6 +5,11 @@ export type WordAudio = { key: string; text: string; blob: Blob; voice: string; 
 export { audioKey } from './audioKey'
 import { audioKey } from './audioKey'
 const MAX_FILE = 10 * 1024 * 1024
+const FETCH_TIMEOUT=15000
+async function withTimeout<T>(work:(signal:AbortSignal)=>Promise<T>):Promise<T>{
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),FETCH_TIMEOUT)
+ try{return await work(controller.signal)}finally{clearTimeout(timer)}
+}
 type HostedAudioManifest = { schemaVersion: number; voice?: string; items: { text: string; file: string; voice?: string }[] }
 let hostedManifestAt=0
 let hostedManifestPromise: Promise<Map<string, { file: string; voice: string }>> | undefined
@@ -54,7 +59,8 @@ export async function readWordAudios(texts: string[]): Promise<Map<string, WordA
         if (!item) return undefined
         let request = hostedAudioPromises.get(key+item.file)
         if (!request) {
-          request = fetch(import.meta.env.BASE_URL + item.file).then(async response => {
+          request = withTimeout(async signal => {
+            const response = await fetch(import.meta.env.BASE_URL + item.file,{signal})
             if (!response.ok) return undefined
             const blob = await response.blob()
             if (!blob.size || blob.size > MAX_FILE) return undefined
@@ -81,16 +87,16 @@ export function invalidateHostedAudioManifest(){
 }
 async function loadHostedManifest() {
   if(Date.now()-hostedManifestAt>60000){hostedManifestPromise=undefined;hostedManifestAt=Date.now()}
-  hostedManifestPromise ??= fetch(import.meta.env.BASE_URL + 'audio/library-manifest.json?version='+Math.floor(Date.now()/60000),{cache:'no-store'})
-    .then(async response => {
-      if (!response.ok) throw new Error('Hosted audio list unavailable')
-      const manifest = await response.json() as HostedAudioManifest
-      if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.items)) throw new Error('Invalid hosted audio list')
-      return new Map(manifest.items.flatMap(item => {
-        if (typeof item.text !== 'string' || !/^audio\/library\/[a-f0-9]{64}\.(mp3|wav|m4a|ogg)$/i.test(item.file)) return []
-        return [[audioKey(item.text), { file: item.file, voice: `网站音频 · ${item.voice ?? manifest.voice ?? 'Aria'}` }] as const]
-      }))
-    }).catch(error => { hostedManifestPromise = undefined; throw error })
+  hostedManifestPromise ??= withTimeout(async signal => {
+    const response = await fetch(import.meta.env.BASE_URL + 'audio/library-manifest.json?version='+Math.floor(Date.now()/60000),{cache:'no-store',signal})
+    if (!response.ok) throw new Error('Hosted audio list unavailable')
+    const manifest = await response.json() as HostedAudioManifest
+    if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.items)) throw new Error('Invalid hosted audio list')
+    return new Map(manifest.items.flatMap(item => {
+      if (typeof item.text !== 'string' || !/^audio\/library\/[a-f0-9]{64}\.(mp3|wav|m4a|ogg)$/i.test(item.file)) return []
+      return [[audioKey(item.text), { file: item.file, voice: `网站音频 · ${item.voice ?? manifest.voice ?? 'Aria'}` }] as const]
+    }))
+  }).catch(error => { hostedManifestPromise = undefined; throw error })
   return hostedManifestPromise
 }
 async function saveAudios(records: WordAudio[]) {
