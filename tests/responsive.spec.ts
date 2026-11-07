@@ -59,3 +59,12 @@ test('the dictation session stays usable after rotating',async({page})=>{
   await expect(page.getByRole('button',{name:'暂停',exact:true})).toBeVisible()
   await expectNoHorizontalOverflow(page)
 })
+
+test('long expression cards fit on a narrow phone',async({page})=>{
+  test.setTimeout(60000)
+  await page.setViewportSize({width:320,height:568})
+  await page.goto('./?view=followalong&book=tape3a_002013&unit=hosted-default%3Aexpressions%3A1')
+  await expect(page.locator('.followalong-card')).toBeVisible({timeout:25000})
+  await expect(page.locator('.followalong-card h2')).toContainText("Hello! I'm Mike Black.")
+  await expectNoHorizontalOverflow(page)
+})

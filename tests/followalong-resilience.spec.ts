@@ -82,3 +82,12 @@ test('a failed follow-along playback reports an error and is not cached',async({
   })
   expect(stored).toBe(0)
 })
+
+test('follow-along still works when the book catalog fails',async({page})=>{
+  test.setTimeout(60000)
+  await page.route('**/data/word-learning/books.json',route=>route.fulfill({status:500,body:''}))
+  await page.goto('./?view=followalong&book=tape3a_002013')
+  await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:25000})
+  await expect(page.getByLabel('选择跟读教材')).toHaveValue('tape3a_002013')
+  await expect(page.getByLabel('选择跟读教材').locator('option')).toHaveCount(1)
+})

@@ -79,6 +79,15 @@ test('an unknown online book id falls back to the first catalog book for follow-
  await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:25000})
 })
 
+test('the online reader starts in the offline state when opened without a network',async({page,context})=>{
+ await page.goto('./')
+ await context.setOffline(true)
+ await page.getByRole('button',{name:'四年级',exact:true}).click()
+ await page.getByRole('button',{name:'打开 四年级上册 人教 PEP',exact:true}).click()
+ await expect(page.getByText('当前没有网络，在线课本暂时无法加载。')).toBeVisible()
+ await context.setOffline(false)
+})
+
 test('the online reader menu closes on Escape and outside clicks',async({page})=>{
  await page.route('https://dd.e63.cn/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>E63 测试页</title>'}))
  await page.goto('./');await page.getByRole('button',{name:'四年级',exact:true}).click();await page.getByRole('button',{name:'打开 四年级上册 人教 PEP',exact:true}).click()

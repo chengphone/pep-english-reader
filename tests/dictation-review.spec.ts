@@ -72,6 +72,22 @@ test('plain words without hosted audio can use the browser fallback',async({page
  await expect(page.locator('.dictation-audio-source')).toContainText('浏览器备用朗读',{timeout:15000})
 })
 
+test('searching and toggling results updates the selected count',async({page})=>{
+ await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
+ await expect(page.getByRole('combobox',{name:'抽取数量'})).toBeEnabled({timeout:15000})
+ await page.getByRole('button',{name:/选择词句/}).click()
+ await page.getByRole('button',{name:'清空本单元',exact:true}).click()
+ await expect(page.getByText('已选 0 / 15 项').first()).toBeVisible()
+ const search=page.getByRole('textbox',{name:'搜索当前单元词句'})
+ await search.fill('name')
+ await expect(page.getByText(/搜索结果 1 项/)).toBeVisible()
+ await page.getByRole('button',{name:'选中搜索结果'}).click()
+ await expect(page.getByText('已选 1 / 15 项').first()).toBeVisible()
+ await page.getByRole('button',{name:'取消结果选择'}).click()
+ await expect(page.getByText('已选 0 / 15 项').first()).toBeVisible()
+ await expect(page.getByRole('combobox',{name:'抽取数量'})).toBeDisabled()
+})
+
 test('retrying a missing original audio preflight checks again instead of starting',async({page})=>{
  let requests=0
  await page.route('**/audio/library/*.mp3',route=>{requests++;return route.abort()})
