@@ -46,6 +46,16 @@ test('a slow follow-along manifest shows a slow-network notice with retry',async
   await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:25000})
 })
 
+test('a stalled follow-along manifest fails instead of loading forever',async({page})=>{
+  test.setTimeout(60000)
+  await page.clock.install()
+  await page.route('**/data/word-learning/tape3a_002013/manifest.json',()=>new Promise(()=>{}))
+  await page.goto('./?view=followalong&book=tape3a_002013')
+  await expect(page.locator('.followalong-status')).toBeVisible()
+  await page.clock.fastForward(16000)
+  await expect(page.locator('.followalong-error')).toContainText('网络请求超时',{timeout:10000})
+})
+
 test('an unknown follow-along unit recovers to the first available unit',async({page})=>{
   test.setTimeout(60000)
   await page.goto('./?view=followalong&book=tape3a_002013&unit=not-a-real-unit')

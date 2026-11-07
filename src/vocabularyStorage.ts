@@ -2,6 +2,7 @@ import { normalizeUnitWordIds } from './vocabularyWords'
 import { validateVocabularyLibrary, validVocabularyUnit } from './libraryValidation'
 import { readSharedMetadata, updateSharedMetadata, withSharedSyncLock } from './sharedMetadata'
 import { stable } from './sharedCanonical'
+import { fetchWithTimeout } from './fetchTimeout'
 import type { VocabularyUnit } from './vocabularyExtraction'
 function openDb() {
  return new Promise<IDBDatabase>((resolve,reject)=>{
@@ -41,7 +42,7 @@ export function seedHostedVocabulary(){
 async function refreshSharedVocabulary(){
  let fallback:VocabularyUnit[]|undefined
  try{
-  const response=await fetch(import.meta.env.BASE_URL+'data/default-vocabulary.json?version='+Date.now(),{cache:'no-store'})
+  const response=await fetchWithTimeout(import.meta.env.BASE_URL+'data/default-vocabulary.json?version='+Date.now(),{cache:'no-store'})
   if(!response.ok)throw new Error('Hosted practice vocabulary unavailable')
   const data=validateVocabularyLibrary(await response.json())
   fallback=data.units

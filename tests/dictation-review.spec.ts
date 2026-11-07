@@ -53,6 +53,20 @@ test('reloading the vocabulary recovers after a transient network failure',async
  await expect(page.getByRole('combobox',{name:'抽取数量'})).toBeEnabled()
 })
 
+test('a stalled vocabulary request times out with a retry',async({page})=>{
+ test.setTimeout(60000)
+ await page.clock.install()
+ let stall=true
+ await page.route('**/data/default-vocabulary.json*',route=>stall?new Promise(()=>{}):route.continue())
+ await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
+ await expect(page.getByRole('heading',{name:'正在读取词表',exact:true})).toBeVisible()
+ await page.clock.fastForward(16000)
+ await expect(page.getByText('词表暂时无法读取，请检查网络后重试。')).toBeVisible({timeout:10000})
+ stall=false
+ await page.getByRole('button',{name:'重新读取词表',exact:true}).click()
+ await expect(page.getByRole('combobox',{name:'选择课本',exact:true})).toBeEnabled({timeout:20000})
+})
+
 test('plain words without hosted audio can use the browser fallback',async({page})=>{
  test.setTimeout(150000)
  await page.setDefaultTimeout(15000)
