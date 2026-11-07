@@ -26,8 +26,11 @@ self.addEventListener('fetch', event => {
     const metadata = [BASE + 'data/default-vocabulary.json', BASE + 'audio/library-manifest.json'].includes(url.pathname)
     const navigation = request.mode === 'navigate'
     const key = metadata ? url.origin + url.pathname : navigation ? url.origin + BASE + 'index.html' : request
+    // Static assets vary only by URL; some hosts add `Vary: Origin`, while precache
+    // requests and page requests send different Origin headers. Ignore Vary so
+    // offline loads still hit the precached copy.
     if (!metadata && !navigation) {
-      const cached = await cache?.match(key).catch(() => undefined)
+      const cached = await cache?.match(key, {ignoreVary: true}).catch(() => undefined)
       if (cached) return cached
     }
     try {
@@ -38,7 +41,7 @@ self.addEventListener('fetch', event => {
       }
       return response
     } catch {
-      return (await cache?.match(key).catch(() => undefined)) || Response.error()
+      return (await cache?.match(key, {ignoreVary: true}).catch(() => undefined)) || Response.error()
     }
   })())
 })

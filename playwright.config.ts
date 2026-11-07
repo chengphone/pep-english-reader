@@ -4,5 +4,5 @@ export default defineConfig({
  reporter:[['list']],outputDir:'/tmp/pep-reader-test-results',
  use:{baseURL:'http://127.0.0.1:5180/pep-english-reader/',trace:'retain-on-failure',screenshot:'only-on-failure'},
  projects:[{name:'chromium',use:{...devices['Desktop Chrome'],channel:process.env.CI?undefined:'chrome'}},{name:'firefox',use:{...devices['Desktop Firefox']}},{name:'webkit',use:{...devices['Desktop Safari']}}],
- webServer:{command:'npm run dev -- --host 127.0.0.1 --port 5180 --strictPort',url:'http://127.0.0.1:5180/pep-english-reader/',reuseExistingServer:!process.env.CI,timeout:30000},
+ webServer:[{command:'npm run dev -- --host 127.0.0.1 --port 5180 --strictPort',url:'http://127.0.0.1:5180/pep-english-reader/',reuseExistingServer:!process.env.CI,timeout:30000},{command:'npm run build && npx vite preview --host 127.0.0.1 --port 5181 --strictPort',url:'http://127.0.0.1:5181/pep-english-reader/',reuseExistingServer:!process.env.CI,timeout:120000}],
 })
