@@ -41,6 +41,37 @@ test('switching to a smaller unit clamps the custom count',async({page})=>{
  await expect(input).toHaveValue('5')
 })
 
+test('reloading the vocabulary recovers after a transient network failure',async({page})=>{
+ test.setTimeout(60000)
+ let fail=true
+ await page.route('**/data/default-vocabulary.json*',route=>fail?route.fulfill({status:500,body:'unavailable'}):route.continue())
+ await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
+ await expect(page.getByText('词表暂时无法读取，请检查网络后重试。')).toBeVisible({timeout:20000})
+ fail=false
+ await page.getByRole('button',{name:'重新读取词表',exact:true}).click()
+ await expect(page.getByRole('combobox',{name:'选择课本',exact:true})).toBeEnabled({timeout:20000})
+ await expect(page.getByRole('combobox',{name:'抽取数量'})).toBeEnabled()
+})
+
+test('plain words without hosted audio can use the browser fallback',async({page})=>{
+ test.setTimeout(150000)
+ await page.setDefaultTimeout(15000)
+ await page.addInitScript(()=>{try{Object.defineProperty(window,'speechSynthesis',{value:{speak(){},cancel(){},getVoices(){return[]}},configurable:true})}catch{}})
+ await page.route('**/audio/library/*.mp3',route=>route.abort())
+ await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
+ const book=page.getByRole('combobox',{name:'选择课本',exact:true})
+ await expect(book).toBeEnabled({timeout:15000})
+ await book.selectOption('六年级英语上册 · PEP新版（E63 002015）')
+ await page.getByRole('button',{name:'Unit 1',exact:true}).click()
+ await page.getByRole('button',{name:'检查声音并开始',exact:true}).first().click()
+ await expect(page.getByText(/普通词音频缺失/)).toBeVisible({timeout:30000})
+ await page.getByRole('checkbox',{name:/允许设备备用朗读/}).check()
+ await page.getByRole('button',{name:'开始听写',exact:true}).first().click()
+ await expect(page.getByRole('heading',{name:'准备开始听写'})).toBeVisible({timeout:15000})
+ await page.locator('.dictation-screen').getByRole('button',{name:'开始听写',exact:true}).click()
+ await expect(page.locator('.dictation-audio-source')).toContainText('浏览器备用朗读',{timeout:15000})
+})
+
 test('retrying a missing original audio preflight checks again instead of starting',async({page})=>{
  let requests=0
  await page.route('**/audio/library/*.mp3',route=>{requests++;return route.abort()})

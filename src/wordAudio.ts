@@ -58,6 +58,7 @@ export async function readWordAudios(texts: string[]): Promise<Map<string, WordA
             if (!response.ok) return undefined
             const blob = await response.blob()
             if (!blob.size || blob.size > MAX_FILE) return undefined
+            try { audioMime(new Uint8Array(await blob.arrayBuffer())) } catch { return undefined }
             return { key, text: texts.find(text => audioKey(text) === key) ?? key, blob, voice: item.voice, hostedFile: item.file, updatedAt: Date.now() }
           }).catch(() => undefined).finally(()=>hostedAudioPromises.delete(key+item.file))
           hostedAudioPromises.set(key+item.file, request)

@@ -78,3 +78,16 @@ test('an unknown online book id falls back to the first catalog book for follow-
  await expect(page.getByLabel('选择跟读教材')).toHaveValue('tape3a_002013')
  await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:25000})
 })
+
+test('the online reader menu closes on Escape and outside clicks',async({page})=>{
+ await page.route('https://dd.e63.cn/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>E63 测试页</title>'}))
+ await page.goto('./');await page.getByRole('button',{name:'四年级',exact:true}).click();await page.getByRole('button',{name:'打开 四年级上册 人教 PEP',exact:true}).click()
+ await page.getByRole('button',{name:'更多阅读操作'}).click()
+ await expect(page.getByRole('menu')).toBeVisible()
+ await page.keyboard.press('Escape')
+ await expect(page.getByRole('menu')).toHaveCount(0)
+ await page.getByRole('button',{name:'更多阅读操作'}).click()
+ await expect(page.getByRole('menu')).toBeVisible()
+ await page.locator('.online-reader-title').click()
+ await expect(page.getByRole('menu')).toHaveCount(0)
+})

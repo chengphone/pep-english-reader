@@ -67,3 +67,18 @@ test('an empty follow-along unit reports an error instead of loading forever',as
   await page.goto('./?view=followalong&book=tape3a_002013&unit='+encodeURIComponent(unitId))
   await expect(page.locator('.followalong-error')).toContainText('暂无可跟读的词句',{timeout:25000})
 })
+
+test('a failed follow-along playback reports an error and is not cached',async({page})=>{
+  test.setTimeout(60000)
+  await page.route('**/audio/library/*.mp3',route=>route.fulfill({contentType:'text/html',body:'not an audio file'}))
+  await page.goto('./?view=followalong&book=tape6a_002015')
+  await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:25000})
+  await page.getByRole('button',{name:'播放单词'}).click()
+  await expect(page.locator('.followalong-error')).toContainText('教材原音暂时无法播放',{timeout:20000})
+  const stored=await page.evaluate(async()=>{
+    const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('pep-word-audio',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})
+    const count=await new Promise<number>(resolve=>{const request=db.transaction('audio').objectStore('audio').count();request.onsuccess=()=>resolve(request.result)})
+    db.close();return count
+  })
+  expect(stored).toBe(0)
+})
