@@ -36,8 +36,19 @@ export async function readSharedBaseline(){return (await readSharedMetadata()).b
 export async function setSharedBaseline(units:VocabularyUnit[]){await updateSharedMetadata(value=>({...value,baseline:units}))}
 let syncing:Promise<VocabularyUnit[]>|undefined
 export function seedHostedVocabulary(){
- syncing??=withSharedSyncLock(refreshSharedVocabulary).finally(()=>{syncing=undefined})
+ syncing??=seedWithSharedLock().finally(()=>{syncing=undefined})
  return syncing
+}
+async function seedWithSharedLock(){
+ const controller=new AbortController()
+ // A tab frozen in the middle of a sync can hold the cross-tab lock without ever
+ // releasing it. Stop waiting after a bounded time and serve the units already on
+ // this device rather than leaving the page loading forever. Aborting only cancels
+ // the wait: a lock this tab already holds still completes normally.
+ const timer=setTimeout(()=>controller.abort(),20000)
+ try{return await withSharedSyncLock(refreshSharedVocabulary,controller.signal)}
+ catch{return await loadUnits().catch(()=>[])}
+ finally{clearTimeout(timer)}
 }
 async function refreshSharedVocabulary(){
  let fallback:VocabularyUnit[]|undefined
