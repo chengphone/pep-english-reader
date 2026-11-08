@@ -78,8 +78,13 @@ export async function resolveDictationAudios(words:AudioWord[]):Promise<(WordAud
  const boundTask=Promise.all(Array.from({length:Math.min(8,bound.length)},async()=>{while(next<bound.length){const index=bound[next++];result[index]=await original(words[index])}}))
  const plainRecords=await plainTask.catch(()=>new Map<string,WordAudio>())
  words.forEach((word,index)=>{if(!word.audio)result[index]=plainRecords.get(audioKey(word.english))})
- await boundTask
- return result
+ // Original recordings cannot be fetched in one request. With a stalled network the
+ // pool above advances one 15 s timeout per batch, so a large round could keep the
+ // preflight waiting for minutes. Return what is ready and let the chooser report
+ // the rest as missing; already downloaded audio is cached for a retry.
+ let timer:ReturnType<typeof setTimeout>|undefined
+ try{await Promise.race([boundTask,new Promise<void>(resolve=>{timer=setTimeout(resolve,60000)})])}finally{clearTimeout(timer)}
+ return [...result]
 }
 export async function exportMaterialAudio(words:AudioWord[]){
  const records=[...(await readMaterialAudios(words)).values()]
