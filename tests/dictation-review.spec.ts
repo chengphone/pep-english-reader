@@ -85,6 +85,9 @@ test('a stalled vocabulary request times out with a retry',async({page})=>{
 test('plain words without hosted audio can use the browser fallback',async({page})=>{
  test.setTimeout(150000)
  await page.setDefaultTimeout(15000)
+ // The page load event waits for the external font stylesheet; keep the suite's
+ // standard navigation timeout so a slow font fetch cannot fail this test.
+ await page.setDefaultNavigationTimeout(30000)
  await page.addInitScript(()=>{try{Object.defineProperty(window,'speechSynthesis',{value:{speak(){},cancel(){},getVoices(){return[]}},configurable:true})}catch{}})
  await page.route('**/audio/library/*.mp3',route=>route.abort())
  await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
