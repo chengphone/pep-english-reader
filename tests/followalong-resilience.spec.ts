@@ -121,3 +121,33 @@ test('a missing follow-along manifest points at missing content, not the network
  await expect(page.locator('.followalong-error')).toContainText('当前教材尚未提供跟读内容',{timeout:25000})
  await expect(page.getByRole('button',{name:'重试',exact:true})).toBeVisible()
 })
+
+test('retrying after the current unit shrank keeps the reader usable',async({page})=>{
+ test.setTimeout(90000)
+ await page.clock.install()
+ await page.route('**/audio/library/*.mp3',()=>new Promise(()=>{}))
+ await page.goto('./?view=followalong&book=tape3a_002013&unit=hosted-default:units:7')
+ await expect(page.locator('.followalong-word-grid button')).toHaveCount(15,{timeout:25000})
+ await page.locator('.followalong-word-grid button').nth(5).click()
+ await expect(page.locator('.followalong-count')).toContainText('6 / 15')
+ await page.getByRole('button',{name:'播放单词',exact:true}).click()
+ await expect(page.locator('.play-state')).toHaveText('正在播放教材原音')
+ await page.clock.fastForward(16000)
+ await expect(page.locator('.followalong-error')).toBeVisible({timeout:10000})
+ // A later release drops most words from the unit; the retry loads the shorter unit
+ // while the reader still remembers position 6.
+ await page.evaluate(async()=>{
+  const db:any=await new Promise((resolve,reject)=>{const request=indexedDB.open('pep-reader-v1',2);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})
+  const unit:any=await new Promise((resolve,reject)=>{const tx=db.transaction('units');const request=tx.objectStore('units').get('hosted-default:units:7');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})
+  unit.words=unit.words.slice(0,3)
+  await new Promise<void>((resolve,reject)=>{const tx=db.transaction('units','readwrite');tx.objectStore('units').put(unit);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})
+  db.close()
+ })
+ const manifest=JSON.parse(await fs.readFile(new URL('../public/data/word-learning/tape3a_002013/manifest.json',import.meta.url),'utf8'))
+ const words=manifest.sections.find((section:any)=>section.id==='words').units.find((unit:any)=>unit.unitId==='hosted-default:units:7')
+ words.words=words.words.slice(0,3)
+ await page.route('**/data/word-learning/tape3a_002013/manifest.json',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(manifest)}))
+ await page.getByRole('button',{name:'重试',exact:true}).click()
+ await expect(page.locator('.followalong-card')).toBeVisible({timeout:15000})
+ await expect(page.locator('.followalong-count')).toContainText('1 / 3')
+})
