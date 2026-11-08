@@ -113,3 +113,11 @@ test('follow-along still works when the book catalog fails',async({page})=>{
   await expect(page.getByLabel('选择跟读教材')).toHaveValue('tape3a_002013')
   await expect(page.getByLabel('选择跟读教材').locator('option')).toHaveCount(1)
 })
+
+test('a missing follow-along manifest points at missing content, not the network',async({page})=>{
+ test.setTimeout(60000)
+ await page.route('**/data/word-learning/tape3a_002013/manifest.json',route=>route.fulfill({status:404,body:'missing'}))
+ await page.goto('./?view=followalong&book=tape3a_002013')
+ await expect(page.locator('.followalong-error')).toContainText('当前教材尚未提供跟读内容',{timeout:25000})
+ await expect(page.getByRole('button',{name:'重试',exact:true})).toBeVisible()
+})

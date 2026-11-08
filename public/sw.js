@@ -11,7 +11,11 @@ const PRECACHE = []
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE)
-    await cache.addAll([BASE, BASE + 'index.html', BASE + 'icon.svg', BASE + 'manifest.webmanifest', ...PRECACHE])
+    // `cache: 'reload'` keeps the host's HTTP cache (for example max-age on
+    // index.html) from precaching the previous release's shell, whose hashed
+    // asset URLs are gone after the deploy and could not boot offline.
+    const shell = [BASE, BASE + 'index.html', BASE + 'icon.svg', BASE + 'manifest.webmanifest', ...PRECACHE]
+    await cache.addAll(shell.map(url => new Request(url, { cache: 'reload' })))
     await self.skipWaiting()
   })())
 })
@@ -62,9 +66,10 @@ self.addEventListener('fetch', event => {
     const controller = new AbortController()
     const timer = cachedData ? setTimeout(() => controller.abort(), 4000) : undefined
     try {
-      // Bypass the HTTP cache too; otherwise a deploy can stay invisible for the
-      // host's max-age even though the service worker asked the network first.
-      const init = freshData ? { cache: 'no-store', ...(timer ? { signal: controller.signal } : {}) } : undefined
+      // Bypass the HTTP cache for data and navigations too; otherwise a deploy can
+      // stay invisible for the host's max-age even though the worker asked the
+      // network first, and an old shell can outlive the assets it references.
+      const init = freshData ? { cache: 'no-store', ...(timer ? { signal: controller.signal } : {}) } : navigation ? { cache: 'no-store' } : undefined
       const response = await fetch(request, init)
       if ((freshData || navigation) && !response.ok) throw new Error('fresh data unavailable')
       // A captive portal or misconfigured host can answer a JSON request with an

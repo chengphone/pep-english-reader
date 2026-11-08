@@ -6,15 +6,18 @@ const source=await readFile(new URL('../public/sw.js',import.meta.url),'utf8')
 const base='http://localhost/pep-english-reader/'
 const json=body=>new Response(body,{headers:{'content-type':'application/json'}})
 function harness(){
- const handlers={},stores=new Map(),pending=[];let fetchImpl=async()=>new Response('online'),failWrites=false
+ const handlers={},stores=new Map(),pending=[],addAlls=[];let fetchImpl=async()=>new Response('online'),failWrites=false
  const cacheFor=name=>{if(!stores.has(name))stores.set(name,new Map());const values=stores.get(name);return {
   match:async request=>values.get(typeof request==='string'?request:request.url)?.clone(),
-  put:async(request,response)=>{if(failWrites)throw new Error('QuotaExceededError');values.set(typeof request==='string'?request:request.url,response.clone())},addAll:async()=>{},keys:async()=>[...values.keys()].map(url=>new Request(url))
+  put:async(request,response)=>{if(failWrites)throw new Error('QuotaExceededError');values.set(typeof request==='string'?request:request.url,response.clone())},addAll:async requests=>{addAlls.push(requests)},keys:async()=>[...values.keys()].map(url=>new Request(url))
  }}
  const caches={open:async name=>cacheFor(name),keys:async()=>[...stores.keys()],delete:async name=>stores.delete(name),match:async request=>{for(const name of stores.keys()){const found=await cacheFor(name).match(request);if(found)return found}}}
  const self={location:new URL(base+'sw.js'),addEventListener:(name,handler)=>handlers[name]=handler,skipWaiting:()=>{},clients:{claim:async()=>{}}}
- vm.runInNewContext(source,{self,caches,URL,Response,AbortController,setTimeout,clearTimeout,fetch:(request,init)=>fetchImpl(request,init)})
- return {stores,cacheFor,network(fn){fetchImpl=fn},quota(){failWrites=true},async activate(){handlers.activate({waitUntil:p=>pending.push(p)});await Promise.all(pending)},async request(path,navigation=false){let response;const waits=[];const request=new Request(new URL(path,base));if(navigation)Object.defineProperty(request,'mode',{value:'navigate'});handlers.fetch({request,respondWith:p=>response=p,waitUntil:p=>waits.push(p)});if(!response)return undefined;const result=await response;await Promise.all(waits);return result}}
+ // Service workers resolve relative precache URLs against their location; Node's
+ // Request constructor requires absolute URLs, so mirror that behavior here.
+ const ScopedRequest=class extends Request{constructor(input,init){super(typeof input==='string'?new URL(input,base).href:input,init)}}
+ vm.runInNewContext(source,{self,caches,URL,Request:ScopedRequest,Response,AbortController,setTimeout,clearTimeout,fetch:(request,init)=>fetchImpl(request,init)})
+ return {stores,cacheFor,addAlls,network(fn){fetchImpl=fn},quota(){failWrites=true},async install(){handlers.install({waitUntil:p=>pending.push(p)});await Promise.all(pending)},async activate(){handlers.activate({waitUntil:p=>pending.push(p)});await Promise.all(pending)},async request(path,navigation=false){let response;const waits=[];const request=new Request(new URL(path,base));if(navigation)Object.defineProperty(request,'mode',{value:'navigate'});handlers.fetch({request,respondWith:p=>response=p,waitUntil:p=>waits.push(p)});if(!response)return undefined;const result=await response;await Promise.all(waits);return result}}
 }
 test('activation preserves caches belonging to other applications',async()=>{
  const h=harness();h.cacheFor('another-app-v1');h.cacheFor('pep-reader-shell-obsolete');await h.activate()
@@ -114,4 +117,18 @@ test('online navigation bypasses an old cached homepage and saves the new shell 
  assert.equal(await (await h.request('index.html',true)).text(),'new catalog')
  h.network(async()=>{throw new Error('offline')})
  assert.equal(await (await h.request('./?fresh=1',true)).text(),'new catalog')
+})
+
+test('installation precaches the shell straight from the network',async()=>{
+ const h=harness();await h.install()
+ const requests=h.addAlls[0]
+ assert(Array.isArray(requests)&&requests.length>=2,'the install must precache the shell synchronously')
+ assert(requests.every(request=>request instanceof Request&&request.cache==='reload'),'precaching must not reuse a previous release from the HTTP cache')
+})
+
+test('online navigation bypasses the HTTP cache so an old shell cannot outlive its assets',async()=>{
+ const h=harness();let init
+ h.network(async(request,options)=>{init=options;return new Response('new shell')})
+ await h.request('index.html',true)
+ assert.equal(init?.cache,'no-store')
 })

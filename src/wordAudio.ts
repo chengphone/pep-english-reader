@@ -52,8 +52,14 @@ export async function readWordAudios(texts: string[]): Promise<Map<string, WordA
     // Storage may be blocked or full; hosted audio must remain playable online.
   }
     try {
+      const keys=[...new Set(texts.map(audioKey))]
+      // Ask for the hosted list only when it can change the result: a word with no
+      // local record, or a hosted recording a newer build may have replaced. Locally
+      // imported audio must stay usable on a stalled network without this request.
+      const needsHosted=keys.some(key=>{const record=result.get(key);return !record||!!record.hostedFile||record.voice.startsWith('网站音频')})
+      if(!needsHosted)return result
       const hosted = await loadHostedManifest()
-      const missing=[...new Set(texts.map(audioKey))].filter(key=>{const record=result.get(key),remote=hosted.get(key);return !record||!!remote&&(!!record.hostedFile||record.voice.startsWith('网站音频'))&&record.hostedFile!==remote.file})
+      const missing=keys.filter(key=>{const record=result.get(key),remote=hosted.get(key);return !record||!!remote&&(!!record.hostedFile||record.voice.startsWith('网站音频'))&&record.hostedFile!==remote.file})
       const records = await Promise.all(missing.map(async key => {
         const item = hosted.get(key)
         if (!item) return undefined
