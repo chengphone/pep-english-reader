@@ -9,7 +9,7 @@ function harness(){
  const handlers={},stores=new Map(),pending=[];let fetchImpl=async()=>new Response('online'),failWrites=false
  const cacheFor=name=>{if(!stores.has(name))stores.set(name,new Map());const values=stores.get(name);return {
   match:async request=>values.get(typeof request==='string'?request:request.url)?.clone(),
-  put:async(request,response)=>{if(failWrites)throw new Error('QuotaExceededError');values.set(typeof request==='string'?request:request.url,response.clone())},addAll:async()=>{}
+  put:async(request,response)=>{if(failWrites)throw new Error('QuotaExceededError');values.set(typeof request==='string'?request:request.url,response.clone())},addAll:async()=>{},keys:async()=>[...values.keys()].map(url=>new Request(url))
  }}
  const caches={open:async name=>cacheFor(name),keys:async()=>[...stores.keys()],delete:async name=>stores.delete(name),match:async request=>{for(const name of stores.keys()){const found=await cacheFor(name).match(request);if(found)return found}}}
  const self={location:new URL(base+'sw.js'),addEventListener:(name,handler)=>handlers[name]=handler,skipWaiting:()=>{},clients:{claim:async()=>{}}}
@@ -20,6 +20,16 @@ test('activation preserves caches belonging to other applications',async()=>{
  const h=harness();h.cacheFor('another-app-v1');h.cacheFor('pep-reader-shell-obsolete');await h.activate()
  assert(h.stores.has('another-app-v1'));assert(!h.stores.has('pep-reader-shell-obsolete'))
 })
+test('activation migrates data cached by the previous app version',async()=>{
+ const h=harness()
+ await h.cacheFor('pep-reader-shell-previous').put(base+'data/word-learning/books.json',json('old catalog'))
+ await h.cacheFor('pep-reader-shell-previous').put(base+'assets/index-old.js',new Response('old asset'))
+ await h.activate()
+ assert(!h.stores.has('pep-reader-shell-previous'))
+ h.network(async()=>{throw new Error('offline')})
+ assert.equal(await (await h.request('data/word-learning/books.json')).text(),'old catalog')
+})
+
 test('worker ignores same-origin requests outside the application scope',async()=>{
  const h=harness();assert.equal(await h.request('/another-app/private.json'),undefined)
 })
@@ -58,8 +68,10 @@ test('cached data survives an app update so follow-along still works offline',as
 
 test('online word-learning data refreshes a cached copy instead of serving it first',async()=>{
  const h=harness();h.network(async()=>json('old catalog'));await h.request('data/word-learning/books.json')
- h.network(async()=>json('new catalog'))
+ let init
+ h.network(async(request,options)=>{init=options;return json('new catalog')})
  assert.equal(await (await h.request('data/word-learning/books.json')).text(),'new catalog')
+ assert.equal(init?.cache,'no-store')
  h.network(async()=>{throw new Error('offline')})
  assert.equal(await (await h.request('data/word-learning/books.json')).text(),'new catalog')
 })

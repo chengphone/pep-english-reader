@@ -5,6 +5,7 @@ const CACHE = 'pep-reader-shell-v3-word-audio'
 const DATA_CACHE = 'pep-reader-data-v1'
 const BASE = '/pep-english-reader/'
 const CACHE_PREFIX = 'pep-reader-shell-'
+const isFreshData = pathname => (pathname.startsWith(BASE + 'data/') && pathname.endsWith('.json')) || pathname === BASE + 'audio/library-manifest.json'
 // Filled with hashed build assets by tools/build-sw.mjs.
 const PRECACHE = []
 self.addEventListener('install', event => {
@@ -17,7 +18,22 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys()
-    await Promise.all(keys.filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE).map(key => caches.delete(key)))
+    const stale = keys.filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE)
+    // Older versions kept data inside their versioned shell cache. Carry it over
+    // once so follow-along content stays available offline right after an update.
+    try {
+      const dataCache = await caches.open(DATA_CACHE)
+      for (const key of stale) {
+        const old = await caches.open(key)
+        for (const request of await old.keys()) {
+          const url = new URL(request.url)
+          if (!isFreshData(url.pathname)) continue
+          const response = await old.match(request)
+          if (response) await dataCache.put(url.origin + url.pathname, response).catch(() => {})
+        }
+      }
+    } catch { /* Storage unavailable must not block the update. */ }
+    await Promise.all(stale.map(key => caches.delete(key)))
     await self.clients.claim()
   })())
 })
@@ -28,7 +44,7 @@ self.addEventListener('fetch', event => {
     // Data files are small and change between releases; fetch them fresh and keep the
     // cached copy only as an offline fallback. Hashed build assets, audio and images
     // stay cache-first because their URLs identify their contents.
-    const freshData = (url.pathname.startsWith(BASE + 'data/') && url.pathname.endsWith('.json')) || url.pathname === BASE + 'audio/library-manifest.json'
+    const freshData = isFreshData(url.pathname)
     // Cache failures must not turn a successful online request into an offline error.
     const cache = await caches.open(freshData ? DATA_CACHE : CACHE).catch(() => undefined)
     const navigation = request.mode === 'navigate'
@@ -46,7 +62,10 @@ self.addEventListener('fetch', event => {
     const controller = new AbortController()
     const timer = cachedData ? setTimeout(() => controller.abort(), 4000) : undefined
     try {
-      const response = await fetch(request, timer ? { signal: controller.signal } : undefined)
+      // Bypass the HTTP cache too; otherwise a deploy can stay invisible for the
+      // host's max-age even though the service worker asked the network first.
+      const init = freshData ? { cache: 'no-store', ...(timer ? { signal: controller.signal } : {}) } : undefined
+      const response = await fetch(request, init)
       if ((freshData || navigation) && !response.ok) throw new Error('fresh data unavailable')
       // A captive portal or misconfigured host can answer a JSON request with an
       // HTML page; caching that would break the offline fallback until a later success.
