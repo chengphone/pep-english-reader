@@ -151,3 +151,21 @@ test('retrying after the current unit shrank keeps the reader usable',async({pag
  await expect(page.locator('.followalong-card')).toBeVisible({timeout:15000})
  await expect(page.locator('.followalong-count')).toContainText('1 / 3')
 })
+
+test('follow-along data requests revalidate the HTTP cache even before the worker controls the page',async({page})=>{
+ test.setTimeout(60000)
+ await page.addInitScript(()=>{
+  const original=window.fetch.bind(window)
+  ;(window as any).__dataFetches=[]
+  window.fetch=(input:RequestInfo|URL,init?:RequestInit)=>{
+   const url=String(input)
+   if(/\/manifest\.json|\/books\.json|library-manifest\.json/.test(url))(window as any).__dataFetches.push({url,cache:init?.cache})
+   return original(input,init)
+  }
+ })
+ await page.goto('./?view=followalong&book=tape3a_002013')
+ await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:25000})
+ const requests=await page.evaluate(()=>(window as any).__dataFetches)
+ expect(requests.length).toBeGreaterThanOrEqual(3)
+ expect(requests.every((request:any)=>request.cache==='no-cache')).toBe(true)
+})
