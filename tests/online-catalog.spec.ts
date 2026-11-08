@@ -103,6 +103,22 @@ test('reconnecting after a mid-session drop keeps the open reader',async({page,c
  expect(await page.locator('iframe').evaluate(frame=>(frame as any).__sessionMarker)).toBe('kept')
 })
 
+test('reconnecting after reloading the reader while offline restores it',async({page,context})=>{
+ await page.route('https://dd.e63.cn/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>E63 测试页</title><p>在线教材</p>'}))
+ await page.goto('./');await page.getByRole('button',{name:'四年级',exact:true}).click();await page.getByRole('button',{name:'打开 四年级上册 人教 PEP',exact:true}).click()
+ await expect(page.locator('iframe')).toBeVisible()
+ await page.waitForTimeout(500)
+ await context.setOffline(true)
+ await expect(page.getByText('当前没有网络，在线课本暂时无法加载。')).toBeVisible()
+ await page.getByRole('button',{name:'更多阅读操作'}).click()
+ await page.getByRole('menuitem',{name:'重新加载',exact:true}).click()
+ await page.waitForTimeout(300)
+ // The reload replaced the loaded reader with the browser's error page.
+ await page.locator('iframe').evaluate(frame=>{(frame as any).__staleMarker='stuck'})
+ await context.setOffline(false)
+ await expect.poll(()=>page.locator('iframe').evaluate(frame=>(frame as any).__staleMarker)).toBeUndefined()
+})
+
 test('the online reader menu closes on Escape and outside clicks',async({page})=>{
  await page.route('https://dd.e63.cn/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>E63 测试页</title>'}))
  await page.goto('./');await page.getByRole('button',{name:'四年级',exact:true}).click();await page.getByRole('button',{name:'打开 四年级上册 人教 PEP',exact:true}).click()

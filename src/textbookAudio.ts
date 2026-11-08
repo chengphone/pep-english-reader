@@ -67,8 +67,18 @@ export async function readMaterialAudios(words:AudioWord[]):Promise<Map<string,W
 }
 export async function resolveDictationAudios(words:AudioWord[]):Promise<(WordAudio|undefined)[]>{
  const result:Array<WordAudio|undefined>=new Array(words.length)
+ // Read every plain word in one storage pass and one hosted-audio lookup. With a
+ // stalled network the old per-word reads could wait one 15 s timeout per batch of
+ // eight words; the whole round now shares a single timeout.
+ const plain=[...new Set(words.filter(word=>!word.audio).map(word=>word.english))]
+ const plainTask=plain.length?readWordAudios(plain):Promise.resolve(new Map<string,WordAudio>())
+ const bound:number[]=[]
+ words.forEach((word,index)=>{if(word.audio)bound.push(index)})
  let next=0
- await Promise.all(Array.from({length:Math.min(8,words.length)},async()=>{while(next<words.length){const index=next++,word=words[index];if(word.audio){result[index]=await original(word);continue}result[index]=(await readWordAudios([word.english])).get(audioKey(word.english))}}))
+ const boundTask=Promise.all(Array.from({length:Math.min(8,bound.length)},async()=>{while(next<bound.length){const index=bound[next++];result[index]=await original(words[index])}}))
+ const plainRecords=await plainTask.catch(()=>new Map<string,WordAudio>())
+ words.forEach((word,index)=>{if(!word.audio)result[index]=plainRecords.get(audioKey(word.english))})
+ await boundTask
  return result
 }
 export async function exportMaterialAudio(words:AudioWord[]){
