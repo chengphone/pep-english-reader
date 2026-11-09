@@ -71,7 +71,14 @@ self.addEventListener('fetch', event => {
       // network first, and an old shell can outlive the assets it references.
       const init = freshData ? { cache: 'no-store', ...(timer ? { signal: controller.signal } : {}) } : navigation ? { cache: 'no-store' } : undefined
       const response = await fetch(request, init)
-      if ((freshData || navigation) && !response.ok) throw new Error('fresh data unavailable')
+      if ((freshData || navigation) && !response.ok) {
+        // A real HTTP error (a removed data file, a server fault) must still reach
+        // the page when there is no cached copy. Response.error() erases the
+        // status, so the follow-along page would report a network failure for
+        // missing content and its retry could never succeed.
+        const fallback = cachedData || (await cache?.match(key, {ignoreVary: true}).catch(() => undefined))
+        return fallback || response
+      }
       // A captive portal or misconfigured host can answer a JSON request with an
       // HTML page; caching that would break the offline fallback until a later success.
       const jsonResponse = !freshData || (response.headers.get('content-type') || '').toLowerCase().includes('json')

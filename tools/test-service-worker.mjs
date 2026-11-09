@@ -85,6 +85,14 @@ test('an error response for data falls back to the cached copy',async()=>{
  assert.equal(await (await h.request('data/word-learning/books.json')).text(),'cached catalog')
 })
 
+test('an uncached data error keeps its HTTP status instead of becoming a network failure',async()=>{
+ const h=harness();h.network(async()=>new Response('missing',{status:404,headers:{'content-type':'text/html'}}))
+ // The follow-along page tells a missing book apart from a broken network by the
+ // status code; Response.error() would erase it and loop on "check your network".
+ const response=await h.request('data/word-learning/removed-book/manifest.json')
+ assert.equal(response.status,404)
+})
+
 test('hashed build assets are served from cache without a network request',async()=>{
  const h=harness();await h.cacheFor('pep-reader-shell-v3-word-audio').put(base+'assets/index-abc.js',new Response('cached-js'))
  h.network(async()=>{throw new Error('unexpected network')})
