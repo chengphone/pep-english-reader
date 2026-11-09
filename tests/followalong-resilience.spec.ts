@@ -101,6 +101,9 @@ test('a stalled hosted audio download fails instead of hanging forever',async({p
   await expect(page.locator('.followalong-word-grid')).toBeVisible({timeout:25000})
   await page.getByRole('button',{name:'播放单词'}).click()
   await expect(page.locator('.play-state')).toHaveText('正在播放教材原音')
+  // The download timeout is created after the local storage read; give the page real
+  // time to start it before advancing the virtual clock.
+  await page.waitForTimeout(1500)
   await page.clock.fastForward(20000)
   await expect(page.locator('.followalong-error')).toContainText('教材原音暂时无法播放',{timeout:10000})
 })
@@ -132,6 +135,9 @@ test('retrying after the current unit shrank keeps the reader usable',async({pag
  await expect(page.locator('.followalong-count')).toContainText('6 / 15')
  await page.getByRole('button',{name:'播放单词',exact:true}).click()
  await expect(page.locator('.play-state')).toHaveText('正在播放教材原音')
+ // The download timeout is created after the local storage read; give the page real
+ // time to start it before advancing the virtual clock.
+ await page.waitForTimeout(1500)
  await page.clock.fastForward(16000)
  await expect(page.locator('.followalong-error')).toBeVisible({timeout:10000})
  // A later release drops most words from the unit; the retry loads the shorter unit

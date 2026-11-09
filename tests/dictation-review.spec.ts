@@ -75,6 +75,9 @@ test('a stalled vocabulary request times out with a retry',async({page})=>{
  await page.route('**/data/default-vocabulary.json*',route=>stall?new Promise(()=>{}):route.continue())
  await page.goto('./');await page.getByRole('button',{name:'听写练习',exact:true}).click()
  await expect(page.getByRole('heading',{name:'正在读取词表',exact:true})).toBeVisible()
+ // The request timeout is created after the cross-tab lock is granted; give the page
+ // real time to start the request before advancing the virtual clock.
+ await page.waitForTimeout(1500)
  await page.clock.fastForward(16000)
  await expect(page.getByText('词表暂时无法读取，请检查网络后重试。')).toBeVisible({timeout:10000})
  stall=false
