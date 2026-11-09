@@ -48,9 +48,9 @@ export default function FollowAlong({bookId,unitId,onBack,onSelectUnit,onSelectB
   }else if(activeRunRef.current)setPlaying(true)
   else void run()
  }
- function switchUnit(nextUnit:string){if(nextUnit===unitId)return;stop();rememberUnit(bookId,nextUnit);onSelectUnit(nextUnit)}
+ function switchUnit(nextUnit:string){if(nextUnit===unitId)return;stop();onSelectUnit(nextUnit)}
  function switchSection(nextSectionId:string){if(!manifest||!section||!unitData||nextSectionId===section.id)return;const nextSection=manifest.sections.find(item=>item.id===nextSectionId);if(!nextSection)return;const nextUnit=nextSection.units.find(item=>item.title===unitData.title)??nextSection.units[0];if(nextUnit)switchUnit(nextUnit.unitId)}
- function switchBook(nextBook:string){if(nextBook===bookId)return;stop();rememberBook(nextBook);onSelectBook(nextBook)}
+ function switchBook(nextBook:string){if(nextBook===bookId)return;stop();onSelectBook(nextBook)}
  function openDictation(){stop();if(unitId)onDictation({kind:'followalong',bookId,unitId});else onOpenDictation()}
  function retryLoad(){stop();setError('');setSlow(false);setReload(value=>value+1)}
  const appHeader=<header className="topbar"><div className="topbar-inner"><div className="brand"><span className="brand-mark" aria-hidden="true"><BookOpen size={19}/></span><span className="brand-text"><strong>英语课本点读</strong><span>PEP · 点读跟读</span></span></div><nav className="nav" aria-label="学习导航"><button className="nav-btn" onClick={()=>{stop();onBack()}}>课本点读</button><button className="nav-btn selected" aria-current="page">跟读学习</button><button className="nav-btn" onClick={openDictation}>听写练习</button></nav></div></header>
