@@ -16,7 +16,7 @@
 - **跟读学习**：三年级上册、六年级上册（PEP 新版），单元词汇 / 常用表达，教材原音、音标、释义、重复遍数与语速。
 - **听写练习**：按教材 / 范围 / 单元选择，全部随机或自定义抽取，检查声音后开始，交卷后对答案。
 - **本地教材**：PDF / ZIP 导入与离线阅读代码保留，当前通过 `src/features.ts` 的 `LOCAL_BOOKS_ENABLED` 开关暂时关闭；已导入数据仍保留在本机。
-- **自建在线教材**：应用读取 `remote-books.json`，直接从远程 URL 加载页面图片和音频，手机、平板、电脑均可点读，无需导入。`npm run book:serve` 可在局域网内提供构建后的应用和教材包；详见 [docs/ONLINE_BOOK.md](docs/ONLINE_BOOK.md)。
+- **自建在线教材**：应用读取 `remote-books.json`，直接从远程 URL 加载页面图片、音频和课堂动漫，手机、平板、电脑均可点读，无需导入。`npm run book:serve` 可在局域网内提供构建后的应用和多本教材包；`npm run book:build-begin` 可把学生用书 PDF、课堂音频和动漫整理成教材包。详见 [docs/ONLINE_BOOK.md](docs/ONLINE_BOOK.md)。
 - **PWA**：可安装，离线缓存应用外壳。
 
 ## 快速开始

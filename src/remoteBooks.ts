@@ -1,6 +1,6 @@
 import { fetchWithTimeout } from './fetchTimeout'
 import { normalizeReaderManifest } from './libraryValidation'
-import type { LocalBook, ReaderItem, ReaderManifest, ReaderPage, RemoteBookEntry } from './reader/types'
+import type { LocalBook, ReaderItem, ReaderManifest, ReaderPage, ReaderResource, RemoteBookEntry } from './reader/types'
 
 // 在线教材目录：应用基路径下的 remote-books.json；也可以用 ?catalog=<URL>
 // 指向任意 HTTPS 静态目录。目录里只放清单地址，课本图片和音频由同一清单解析。
@@ -10,6 +10,18 @@ const TRANSLATION_KEY = 'pep:remote-translation:'
 
 function isObject(value: unknown): value is Record<string, any> { return !!value && typeof value === 'object' && !Array.isArray(value) }
 function isRect(value: unknown): value is [number, number, number, number] { return Array.isArray(value) && value.length === 4 && value.every(number => typeof number === 'number' && Number.isFinite(number)) }
+function isResource(value: unknown): value is ReaderResource {
+  return isObject(value) && typeof value.id === 'string' && !!value.id.trim() &&
+    (value.kind === 'audio' || value.kind === 'video') &&
+    typeof value.src === 'string' && !!value.src.trim() &&
+    (value.title === undefined || typeof value.title === 'string') &&
+    (value.subtitle === undefined || typeof value.subtitle === 'string') &&
+    (value.track === undefined || typeof value.track === 'number') &&
+    (value.duration === undefined || typeof value.duration === 'number') &&
+    (value.poster === undefined || typeof value.poster === 'string') &&
+    (value.continuous === undefined || typeof value.continuous === 'boolean') &&
+    (value.startAt === undefined || (typeof value.startAt === 'number' && Number.isFinite(value.startAt) && value.startAt >= 0))
+}
 
 export function catalogUrl(): URL {
   const requested = new URL(location.href).searchParams.get('catalog')
@@ -23,11 +35,17 @@ function normalizeCatalog(value: unknown, base: URL): RemoteBookEntry[] {
     if (!isObject(row) || typeof row.id !== 'string' || !row.id.trim() || typeof row.manifest !== 'string' || !row.manifest.trim() || seen.has(row.id)) continue
     seen.add(row.id)
     const pages = Number(row.pages)
+    const items = Number(row.items)
+    const audio = Number(row.audio)
+    const videos = Number(row.videos)
     entries.push({
       id: row.id.trim(),
       title: typeof row.title === 'string' && row.title.trim() ? row.title.trim() : row.id.trim(),
       manifest: new URL(row.manifest, base).href,
       pages: Number.isFinite(pages) && pages > 0 ? Math.trunc(pages) : undefined,
+      items: Number.isFinite(items) && items > 0 ? Math.trunc(items) : undefined,
+      audio: Number.isFinite(audio) && audio > 0 ? Math.trunc(audio) : undefined,
+      videos: Number.isFinite(videos) && videos > 0 ? Math.trunc(videos) : undefined,
       cover: typeof row.cover === 'string' && row.cover.trim() ? new URL(row.cover, base).href : undefined,
     })
   }
@@ -80,6 +98,14 @@ export async function loadRemoteBook(entry: RemoteBookEntry): Promise<LocalBook>
       audio: item.audio ? new URL(item.audio, manifestUrl).href : undefined,
       translation: item.translation ?? readRemoteTranslation(bookId, item.id),
     })),
+    resources: Array.isArray(page.resources)
+      ? page.resources.filter(isResource).map(resource => ({
+          ...resource,
+          title: resource.title?.trim() || (resource.kind === 'audio' ? '本页音频' : '课堂动漫'),
+          src: new URL(resource.src, manifestUrl).href,
+          poster: resource.poster ? new URL(resource.poster, manifestUrl).href : undefined,
+        }))
+      : undefined,
   }))
   return {
     id: bookId,

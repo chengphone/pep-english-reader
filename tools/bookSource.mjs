@@ -11,6 +11,19 @@ export function defaultBookInput() {
   return join(homedir(), 'Downloads', 'lets-go-picture-dictionary-reader.zip')
 }
 
+// 默认同时提供图画词典和 Let's Go Begin 1 学生用书；存在的教材才会进入目录。
+export function defaultBookInputs() {
+  const candidates = [
+    defaultBookInput(),
+    join(homedir(), 'Downloads', 'lets-go-begin-1-reader'),
+  ]
+  const found = candidates.filter(path => {
+    if (!existsSync(path)) return false
+    try { return !statSync(path).isDirectory() || existsSync(join(path, 'book.json')) } catch { return false }
+  })
+  return found.length ? found : [candidates[0]]
+}
+
 export function safeJoin(root, relative) {
   if (relative.includes('\0')) return null
   const target = resolve(root, '.' + (relative.startsWith('/') ? relative : '/' + relative))
@@ -41,6 +54,34 @@ async function extractZip(zipPath) {
   }
   if (!existsSync(join(destination, 'book.json'))) throw new Error('教材包里找不到 book.json')
   return destination
+}
+
+export function bookCatalogEntry(source, mount) {
+  const coverImage = source.manifest.pages[0]?.image
+  const cover = typeof coverImage === 'string' && !/^[a-z]+:/i.test(coverImage)
+    ? `${mount}/${coverImage.split('#')[0]}`
+    : undefined
+  const items = source.manifest.pages.reduce((sum, page) => sum + (Array.isArray(page.items) ? page.items.length : 0), 0)
+  // 同一段音频可能挂在相邻两页（continuous），目录按资源 id / 文件去重后计数。
+  const audioKeys = new Set(), videoKeys = new Set()
+  for (const page of source.manifest.pages) {
+    const resources = Array.isArray(page.resources) ? page.resources : []
+    resources.forEach((resource, index) => {
+      if (resource?.kind === 'audio') audioKeys.add(resource.id || resource.src || resource.track || `a:${page.page}:${index}`)
+      else if (resource?.kind === 'video') videoKeys.add(resource.id || resource.src || `v:${page.page}:${index}`)
+    })
+  }
+  const audio = audioKeys.size, videos = videoKeys.size
+  return {
+    id: source.id,
+    title: source.title,
+    pages: source.pages,
+    ...(items ? { items } : {}),
+    ...(audio ? { audio } : {}),
+    ...(videos ? { videos } : {}),
+    manifest: `${mount}/book.json`,
+    ...(cover ? { cover } : {}),
+  }
 }
 
 export async function resolveBookSource(input = defaultBookInput()) {

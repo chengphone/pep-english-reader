@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 本机在线教材服务器：同时提供构建后的应用和一本教材包。
+// 本机在线教材服务器：同时提供构建后的应用和多本教材包。
 // 手机、平板和电脑在同一 Wi-Fi 下打开终端打印的地址即可点读，无需导入。
 // 教材目录在站点根路径 /book-data/ 下，不进入 dist，也不会被提交到仓库。
 import { createReadStream, existsSync, statSync } from 'node:fs'
@@ -7,7 +7,7 @@ import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defaultBookInput, resolveBookSource, safeJoin } from './bookSource.mjs'
+import { bookCatalogEntry, defaultBookInputs, resolveBookSource, safeJoin } from './bookSource.mjs'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const args = process.argv.slice(2)
@@ -17,17 +17,30 @@ function option(name, fallback) {
   const value = args[index]
   return value.includes('=') ? value.slice(value.indexOf('=') + 1) : args[index + 1] ?? fallback
 }
+function options(name) {
+  const values = []
+  for (let index = 0; index < args.length; index++) {
+    const value = args[index]
+    if (value === `--${name}`) {
+      if (args[index + 1] && !args[index + 1].startsWith('--')) values.push(args[++index])
+    } else if (value.startsWith(`--${name}=`)) {
+      values.push(value.slice(value.indexOf('=') + 1))
+    }
+  }
+  return values
+}
 const PORT = Number(option('port', process.env.PORT ?? 4173))
 const HOST = option('host', '0.0.0.0')
 const BASE = `/${String(option('base', '/pep-english-reader/')).replace(/^\/+|\/+$/g, '')}/`
 const DIST = resolve(ROOT, option('dist', 'dist'))
-const BOOK_INPUT = resolve(option('book', defaultBookInput()))
+const BOOK_INPUTS = options('book').length ? options('book').map(value => resolve(value)) : defaultBookInputs()
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp',
   '.gif': 'image/gif', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+  '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm',
   '.m4a': 'audio/mp4', '.pdf': 'application/pdf', '.wasm': 'application/wasm', '.woff': 'font/woff', '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8', '.map': 'application/json; charset=utf-8',
 }
@@ -37,14 +50,20 @@ function fail(message) {
   process.exit(1)
 }
 
-async function prepareBook() {
-  let source
-  try { source = await resolveBookSource(BOOK_INPUT) } catch (error) { fail(error instanceof Error ? error.message : String(error)); return }
-  const mount = '/book-data/' + encodeURIComponent(source.id)
+async function prepareBooks() {
+  const books = []
+  const ids = new Set()
+  for (const input of BOOK_INPUTS) {
+    let source
+    try { source = await resolveBookSource(input) } catch (error) { fail(error instanceof Error ? error.message : String(error)); return [] }
+    if (ids.has(source.id)) { fail(`教材 id 重复：${source.id}（${input}）`); return [] }
+    ids.add(source.id)
+    const mount = '/book-data/' + encodeURIComponent(source.id)
+    books.push({ ...source, mount })
+  }
   return {
-    ...source,
-    mount,
-    catalog: { books: [{ id: source.id, title: source.title, pages: source.pages, manifest: mount + '/book.json' }] },
+    books,
+    catalog: { books: books.map(book => bookCatalogEntry(book, book.mount)) },
   }
 }
 
@@ -128,8 +147,9 @@ const CORS = {
 }
 
 if (!existsSync(join(DIST, 'index.html'))) fail(`找不到 ${join(DIST, 'index.html')}，请先运行 npm run build。`)
-const book = await prepareBook()
-console.log(`教材：${book.title} · ${book.pages} 页`)
+const { books, catalog } = await prepareBooks()
+console.log('教材：')
+for (const book of books) console.log(`  ${book.title} · ${book.pages} 页`)
 
 const server = createServer((request, response) => {
   if (request.method === 'OPTIONS') {
@@ -157,7 +177,9 @@ const server = createServer((request, response) => {
       response.end()
       return
     }
-    if (rawPathname.startsWith(book.mount + '/')) {
+    if (rawPathname.startsWith('/book-data/')) {
+      const book = books.find(item => rawPathname.startsWith(item.mount + '/'))
+      if (!book) { response.writeHead(404); response.end('Not found'); return }
       const relative = decodeURIComponent(rawPathname.slice(book.mount.length + 1))
       const target = safeJoin(book.root, relative)
       if (!target) { response.writeHead(404); response.end('Not found'); return }
@@ -167,7 +189,7 @@ const server = createServer((request, response) => {
     if (pathname.startsWith(BASE)) {
       const relative = pathname.slice(BASE.length) || 'index.html'
       if (relative === 'remote-books.json') {
-        const body = JSON.stringify(book.catalog)
+        const body = JSON.stringify(catalog)
         response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(body), ...CORS })
         response.end(request.method === 'HEAD' ? undefined : body)
         return
@@ -192,18 +214,18 @@ server.listen(PORT, HOST, () => {
   for (const rows of Object.values(networkInterfaces())) {
     for (const row of rows ?? []) if (row.family === 'IPv4' && !row.internal) addresses.push(row.address)
   }
-  const query = `?view=remote&book=${encodeURIComponent(book.id)}`
+  const query = id => `?view=remote&book=${encodeURIComponent(id)}`
   const local = `http://localhost:${PORT}${BASE}`
   console.log('\n在线点读已启动\n')
   console.log('电脑：')
   console.log(`  书架      ${local}`)
-  console.log(`  直接阅读  ${local}${query}`)
+  for (const book of books) console.log(`  ${book.title}  ${local}${query(book.id)}`)
   if (addresses.length) {
     console.log('手机/平板（同一 Wi-Fi）：')
     for (const address of addresses) {
       const origin = `http://${address}:${PORT}${BASE}`
       console.log(`  书架      ${origin}`)
-      console.log(`  直接阅读  ${origin}${query}`)
+      for (const book of books) console.log(`  ${book.title}  ${origin}${query(book.id)}`)
     }
   } else {
     console.log('手机/平板：未检测到局域网地址，请确认已连接 Wi-Fi。')
