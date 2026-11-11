@@ -5,7 +5,7 @@ const CACHE = 'pep-reader-shell-v3-word-audio'
 const DATA_CACHE = 'pep-reader-data-v1'
 const BASE = '/pep-english-reader/'
 const CACHE_PREFIX = 'pep-reader-shell-'
-const isFreshData = pathname => (pathname.startsWith(BASE + 'data/') && pathname.endsWith('.json')) || pathname === BASE + 'audio/library-manifest.json'
+const isFreshData = pathname => (pathname.startsWith(BASE + 'data/') && pathname.endsWith('.json')) || pathname === BASE + 'audio/library-manifest.json' || pathname === BASE + 'remote-books.json'
 // Filled with hashed build assets by tools/build-sw.mjs.
 const PRECACHE = []
 self.addEventListener('install', event => {

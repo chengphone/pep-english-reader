@@ -3,10 +3,11 @@ import type { CSSProperties } from 'react'
 import { BookOpen, ChevronRight, Download, Headphones, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import './Bookshelf.css'
 import RenameDialog from './RenameDialog'
-import type { OnlineBook } from './reader/types'
+import type { OnlineBook, RemoteBookEntry } from './reader/types'
 import { onlineBookEdition, type PendingOnlineBook } from './onlineCatalog'
 import { LOCAL_BOOKS_ENABLED } from './features'
 type SavedBook={id:string;title:string;pages:number;lastPage:number}
+type RemoteShelfBook=RemoteBookEntry&{lastPage:number}
 const grades:Record<number,string>={3:'三年级',4:'四年级',5:'五年级',6:'六年级',7:'七年级',8:'八年级',9:'九年级'}
 const coverArtNames:Record<number,[string,string]>={3:['school','friend'],4:['apple','cat'],5:['dog','book-fair'],6:['friend','school'],7:['great-wall','museum'],8:['earth','ocean'],9:['space','great-wall']}
 const coverTones:Record<number,string>={3:'#0E5B43',4:'#8C6420',5:'#3C73B4',6:'#4B7D6B',7:'#A8532F',8:'#4A5A8C',9:'#6B4A7D'}
@@ -27,7 +28,7 @@ function BookCover({book,pending=false}:{book:CoverBook;pending?:boolean}){
  </div>
 }
 function followAlongBook(grade:number){if(grade===6)return 'tape6a_002015';if(grade===3)return 'tape3a_002013';try{return localStorage.getItem('pep:followalong-book')??'tape3a_002013'}catch{return 'tape3a_002013'}}
-export default function Bookshelf({books,catalog,pendingCatalog=[],onRead,onOnline,onImport,onRemove,onRename,onDictation,onFollowAlong,onDemo,onHelp}:{books:SavedBook[];catalog:OnlineBook[];pendingCatalog?:PendingOnlineBook[];onRead:(id:string)=>void;onOnline:(id:string)=>void;onFollowAlong:(bookId:string)=>void;onImport:(file?:File)=>Promise<void>;onRemove:(id:string)=>Promise<void>;onRename:(id:string,name:string)=>Promise<void>;onDictation:()=>void;onDemo:()=>void;onHelp:()=>void}){
+export default function Bookshelf({books,remoteBooks,catalog,pendingCatalog=[],onRead,onRemote,onOnline,onImport,onRemove,onRename,onDictation,onFollowAlong,onDemo,onHelp}:{books:SavedBook[];remoteBooks:RemoteShelfBook[];catalog:OnlineBook[];pendingCatalog?:PendingOnlineBook[];onRead:(id:string)=>void;onRemote:(id:string)=>void;onOnline:(id:string)=>void;onFollowAlong:(bookId:string)=>void;onImport:(file?:File)=>Promise<void>;onRemove:(id:string)=>Promise<void>;onRename:(id:string,name:string)=>Promise<void>;onDictation:()=>void;onDemo:()=>void;onHelp:()=>void}){
  const [grade,setGrade]=useState(()=>{try{const n=Number(localStorage.getItem('pep:shelf-grade'));return n>=3&&n<=9?n:3}catch{return 3}}),[manage,setManage]=useState(false),[busy,setBusy]=useState(false),[deleting,setDeleting]=useState<string|null>(null),[deleteError,setDeleteError]=useState('')
  const [renaming,setRenaming]=useState<SavedBook|null>(null)
  const input=useRef<HTMLInputElement>(null)
@@ -39,6 +40,13 @@ export default function Bookshelf({books,catalog,pendingCatalog=[],onRead,onOnli
  async function removeBook(){if(!deleting)return;setDeleteError('');try{await onRemove(deleting);setDeleting(null)}catch{setDeleteError('删除失败，请重试。')}}
  return <div className="kids-bookshelf shelf-page"><header className="topbar"><div className="topbar-inner"><div className="brand"><span className="brand-mark" aria-hidden="true"><BookOpen size={19}/></span><span className="brand-text"><strong>英语课本点读</strong><span>PEP · 点读跟读</span></span></div><nav className="nav" aria-label="学习导航"><button className="nav-btn selected" aria-current="page">课本点读</button><button className="nav-btn" onClick={()=>onFollowAlong(followAlongBook(grade))}>跟读学习</button><button className="nav-btn" onClick={onDictation}>听写练习</button></nav>{LOCAL_BOOKS_ENABLED&&<button className="manage-btn" aria-pressed={manage} onClick={()=>setManage(value=>!value)}>{manage?'完成管理':'管理课本'}</button>}</div></header>
  <main className="shell shelf-main">
+  {remoteBooks.length>0&&<section className="offline remote-shelf" aria-labelledby="remote-books-heading">
+   <div className="offline-head"><div><h2 id="remote-books-heading">我的在线教材<span className="tag remote-tag">在线</span></h2><p>打开即读，不用下载；手机、平板和电脑都能用。</p></div></div>
+   <div className="local-grid">{remoteBooks.map(book=><article className="local-book remote-book" key={book.id}>
+    <div className="local-cover remote-cover" aria-hidden="true"><BookOpen size={26}/><span>ONLINE</span></div>
+    <div className="local-copy"><h3>{book.title}</h3><p>{book.lastPage>0?`上次读到第 ${book.lastPage+1} 页`:book.pages?`共 ${book.pages} 页 · 打开即读`:'打开即读'}</p><div className="local-actions"><button className="btn btn-small btn-primary" onClick={()=>onRemote(book.id)}>{book.lastPage>0?'继续阅读':'开始阅读'}</button></div></div>
+   </article>)}</div>
+  </section>}
   <section className="hero" aria-labelledby="hero-title">
    <div className="hero-copy">
     <p className="kicker">人教 PEP · 三年级起点</p>

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { resolveAudioRange, rangeProgress, prepareAudioRange, formatAudioTime } from '../src/reader/audioRange.ts'
+import { resolveAudioRange, rangeProgress, prepareAudioRange, formatAudioTime, formatAudioRange } from '../src/reader/audioRange.ts'
 import { normalizeReaderManifest } from '../src/libraryValidation.ts'
 
 class FakePlayer {
@@ -70,6 +70,9 @@ assert.deepEqual(rangeProgress(10,null,15),{current:10,total:15})
 assert.equal(formatAudioTime(2),'0:02')
 assert.equal(formatAudioTime(65),'1:05')
 assert.equal(formatAudioTime(Number.NaN),'0:00')
+assert.equal(formatAudioRange(2,4),'0:02–0:04')
+assert.equal(formatAudioRange(33.104,33.738),'0:33.1–0:33.7')
+assert.equal(formatAudioRange(Number.NaN,0),'0:00.0–0:00.0')
 
 // 清单导入：没有区间字段的老清单原样保留；合法区间保留；无效区间退回整段播放。
 const oldManifest={schemaVersion:1,bookId:'b',title:'t',publisherId:'pep',pages:[{page:1,image:'pages/1.svg',items:[{id:'i1',text:'Hello',order:1,rects:[[0,0,1,1]],audio:'audio/1.mp3'}]}]}

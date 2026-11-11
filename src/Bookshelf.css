@@ -373,6 +373,10 @@ button.kids-online-book { cursor: pointer; }
 .dropzone p { font-size: 12px; color: var(--muted); }
 .dropzone-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
+.remote-shelf { margin-top: 24px; }
+.remote-tag { display: inline-flex; margin-left: 8px; vertical-align: 3px; }
+.remote-book { border-color: var(--line-strong); }
+.remote-cover { background: linear-gradient(150deg, #247A60, var(--green) 58%, #0A3F31); }
 .local-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
 .local-book {
   display: flex;

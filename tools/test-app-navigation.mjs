@@ -19,6 +19,9 @@ assert.deepEqual(route('?view=local&book=b1&page=1e309'),{kind:'local',bookId:'b
 assert.deepEqual(route('?view=local&book=b1&page=abc'),{kind:'local',bookId:'b1',page:0})
 assert.deepEqual(route('?view=local&book=b1&page='),{kind:'local',bookId:'b1',page:0})
 assert.deepEqual(route('?view=local&book=b1&page=1e3'),{kind:'local',bookId:'b1',page:1000})
+assert.deepEqual(route('?view=remote&book=r1'),{kind:'remote',bookId:'r1',page:0})
+assert.deepEqual(route('?view=remote&book=r1&page=3'),{kind:'remote',bookId:'r1',page:3})
+assert.deepEqual(route('?view=remote'),{kind:'shelf'})
 
 const valid={key:routeKey,idx:2,route:{kind:'vocab'}}
 assert.deepEqual(readAppHistory(valid),valid)
@@ -30,6 +33,8 @@ assert.equal(onlineUrl.searchParams.get('view'),'online');assert.equal(onlineUrl
 assert.equal(onlineUrl.searchParams.get('page'),null);assert.equal(onlineUrl.searchParams.get('unit'),null);assert.equal(onlineUrl.searchParams.get('keep'),'1')
 const local=writeRouteUrl({kind:'local',bookId:'b1',page:4}),localUrl=new URL(local)
 assert.equal(localUrl.searchParams.get('view'),'local');assert.equal(localUrl.searchParams.get('book'),'b1');assert.equal(localUrl.searchParams.get('page'),'4');assert.equal(localUrl.searchParams.get('keep'),'1')
+const remote=writeRouteUrl({kind:'remote',bookId:'r1',page:5}),remoteUrl=new URL(remote)
+assert.equal(remoteUrl.searchParams.get('view'),'remote');assert.equal(remoteUrl.searchParams.get('book'),'r1');assert.equal(remoteUrl.searchParams.get('page'),'5');assert.equal(remoteUrl.searchParams.get('keep'),'1')
 const shelf=new URL(writeRouteUrl({kind:'shelf'}))
 assert.equal(shelf.searchParams.get('view'),null);assert.equal(shelf.searchParams.get('book'),null);assert.equal(shelf.searchParams.get('keep'),'1')
 const special=writeRouteUrl({kind:'online',bookId:'a&b c/d?e'})

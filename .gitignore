@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# 在线教材部署清单指向本机或私有存储，不随仓库提交
+public/remote-books.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

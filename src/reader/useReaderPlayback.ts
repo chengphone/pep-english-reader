@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { audioKey, readWordAudios } from '../wordAudio'
-import { formatAudioTime, prepareAudioRange, resolveAudioRange } from './audioRange'
+import { formatAudioRange, prepareAudioRange, resolveAudioRange } from './audioRange'
 import type { LocalBook, ReaderItem } from './types'
 export type ReaderPlaybackStatus='idle'|'loading'|'playing'|'paused'|'error'
 export function useReaderPlayback(book:LocalBook|null,onSelect:(item:ReaderItem)=>void,repeat:number,speed:number) {
@@ -46,7 +46,7 @@ export function useReaderPlayback(book:LocalBook|null,onSelect:(item:ReaderItem)
    if(token!==version.current)return
    if(blob){url.current=URL.createObjectURL(blob);src=url.current}
    const range=src?resolveAudioRange(item):null
-   setSource(range?`${kind||'浏览器朗读'} · ${formatAudioTime(range.start)}–${formatAudioTime(range.end)}`:kind||'浏览器朗读')
+   setSource(range?`${kind||'浏览器朗读'} · ${formatAudioRange(range.start,range.end)}`:kind||'浏览器朗读')
    const finished=()=>{
     if(token!==version.current)return
     times.current++

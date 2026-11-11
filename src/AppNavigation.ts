@@ -1,4 +1,4 @@
-export type AppRoute={kind:'shelf'}|{kind:'local';bookId:string;page:number}|{kind:'online';bookId:string}|{kind:'followalong';bookId:string;unitId:string}|{kind:'vocab'}
+export type AppRoute={kind:'shelf'}|{kind:'local';bookId:string;page:number}|{kind:'remote';bookId:string;page:number}|{kind:'online';bookId:string}|{kind:'followalong';bookId:string;unitId:string}|{kind:'vocab'}
 export const routeKey='pep-english-reader'
 type HistoryState={key?:string;idx?:number;route?:AppRoute}
 export function readAppHistory(state:unknown):HistoryState|undefined {
@@ -9,7 +9,7 @@ export function routeFromUrl(url:URL):AppRoute {
  const app=url.searchParams.get('view'),id=url.searchParams.get('book')
  if(app==='online'&&id)return {kind:'online',bookId:id}
  if(app==='followalong'&&id)return {kind:'followalong',bookId:id,unitId:url.searchParams.get('unit')??''}
- if(app==='local'&&id){const requested=Number(url.searchParams.get('page'));const page=Number.isFinite(requested)?Math.max(0,Math.floor(requested)):0;return {kind:'local',bookId:id,page}}
+ if((app==='local'||app==='remote')&&id){const requested=Number(url.searchParams.get('page'));const page=Number.isFinite(requested)?Math.max(0,Math.floor(requested)):0;return {kind:app,bookId:id,page}}
  if(app==='vocab')return {kind:'vocab'}
  return {kind:'shelf'}
 }
@@ -18,7 +18,7 @@ export function writeRouteUrl(route:AppRoute){
  for(const key of ['view','book','page','unit'])url.searchParams.delete(key)
  if(route.kind==='online'){url.searchParams.set('view','online');url.searchParams.set('book',route.bookId)}
  if(route.kind==='followalong'){url.searchParams.set('view','followalong');url.searchParams.set('book',route.bookId);if(route.unitId)url.searchParams.set('unit',route.unitId)}
- if(route.kind==='local'){url.searchParams.set('view','local');url.searchParams.set('book',route.bookId);url.searchParams.set('page',String(route.page))}
+ if(route.kind==='local'||route.kind==='remote'){url.searchParams.set('view',route.kind);url.searchParams.set('book',route.bookId);url.searchParams.set('page',String(route.page))}
  if(route.kind==='vocab')url.searchParams.set('view','vocab')
  return url.href
 }

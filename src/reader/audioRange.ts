@@ -19,6 +19,13 @@ export function rangeProgress(currentTime:number,range:AudioRange|null,duration:
  return {current:Math.min(total,Math.max(0,current-start)),total}
 }
 export function formatAudioTime(seconds:number){const value=Math.max(0,Math.floor(Number.isFinite(seconds)?seconds:0));return `${Math.floor(value/60)}:${String(value%60).padStart(2,'0')}`}
+// 短于 1 秒的片段取整后会显示成“0:33–0:33”，此时补一位小数。
+export function formatAudioRange(start:number,end:number){
+ const from=formatAudioTime(start),to=formatAudioTime(end)
+ if(from!==to)return `${from}–${to}`
+ const precise=(value:number)=>{const safe=Math.max(0,Number.isFinite(value)?value:0);return `${Math.floor(safe/60)}:${(safe%60).toFixed(1).padStart(4,'0')}`}
+ return `${precise(start)}–${precise(end)}`
+}
 // 在播放器上启用区间：元数据就绪后跳到起点，播到终点就暂停并回调。
 // 返回清理函数；暂停后恢复复用同一播放器时监听保持有效。
 export function attachAudioRange(player:RangePlayer,range:AudioRange,onEnd:()=>void){

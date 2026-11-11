@@ -79,6 +79,15 @@ test('online word-learning data refreshes a cached copy instead of serving it fi
  assert.equal(await (await h.request('data/word-learning/books.json')).text(),'new catalog')
 })
 
+test('online textbook catalog refreshes instead of being served from the shell cache',async()=>{
+ const h=harness();h.network(async()=>json('{"books":[]}'));await h.request('remote-books.json')
+ let init;h.network(async(request,options)=>{init=options;return json('{"books":[{"id":"b"}]}')})
+ assert.match(await (await h.request('remote-books.json')).text(),/"id":"b"/)
+ assert.equal(init?.cache,'no-store')
+ h.network(async()=>{throw new Error('offline')})
+ assert.match(await (await h.request('remote-books.json')).text(),/"id":"b"/)
+})
+
 test('an error response for data falls back to the cached copy',async()=>{
  const h=harness();h.network(async()=>json('cached catalog'));await h.request('data/word-learning/books.json')
  h.network(async()=>new Response('missing',{status:404}))
