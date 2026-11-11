@@ -1,16 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { audioKey, readWordAudios } from '../wordAudio'
+import { formatAudioTime, prepareAudioRange, resolveAudioRange } from './audioRange'
 import type { LocalBook, ReaderItem } from './types'
 export type ReaderPlaybackStatus='idle'|'loading'|'playing'|'paused'|'error'
 export function useReaderPlayback(book:LocalBook|null,onSelect:(item:ReaderItem)=>void,repeat:number,speed:number) {
  const [status,setStatus]=useState<ReaderPlaybackStatus>('idle'),[source,setSource]=useState(''),[error,setError]=useState('')
  const audio=useRef<HTMLAudioElement|null>(null),speech=useRef<SpeechSynthesisUtterance|null>(null),url=useRef('')
  const version=useRef(0),attempt=useRef(0),phase=useRef<ReaderPlaybackStatus>('idle'),paused=useRef(false),pendingEnd=useRef(false)
- const complete=useRef<(()=>void)|null>(null),resumePlayback=useRef<(()=>void)|null>(null)
+ const complete=useRef<(()=>void)|null>(null),resumePlayback=useRef<(()=>void)|null>(null),rangeDetach=useRef<(()=>void)|null>(null)
  const queue=useRef<ReaderItem[]>([]),position=useRef(0),times=useRef(0),bookRef=useRef(book),selectRef=useRef(onSelect),options=useRef({repeat,speed})
  useLayoutEffect(()=>{bookRef.current=book;selectRef.current=onSelect;options.current={repeat,speed}},[book,onSelect,repeat,speed])
  function changeStatus(value:ReaderPlaybackStatus){phase.current=value;setStatus(value)}
  function clearMedia(){
+  rangeDetach.current?.();rangeDetach.current=null
   const player=audio.current;audio.current=null
   if(player){player.onended=null;player.onerror=null;player.pause();player.removeAttribute('src');player.load()}
   if(speech.current){speech.current.onstart=null;speech.current.onend=null;speech.current.onerror=null;speech.current=null}
@@ -43,7 +45,8 @@ export function useReaderPlayback(book:LocalBook|null,onSelect:(item:ReaderItem)
    if(!src){const record=(await readWordAudios([item.text])).get(audioKey(item.text));if(token!==version.current)return;if(record){blob=record.blob;kind=record.voice.startsWith('网站音频')?record.voice:'本地音频'}}
    if(token!==version.current)return
    if(blob){url.current=URL.createObjectURL(blob);src=url.current}
-   setSource(kind||'浏览器朗读')
+   const range=src?resolveAudioRange(item):null
+   setSource(range?`${kind||'浏览器朗读'} · ${formatAudioTime(range.start)}–${formatAudioTime(range.end)}`:kind||'浏览器朗读')
    const finished=()=>{
     if(token!==version.current)return
     times.current++
@@ -58,7 +61,7 @@ export function useReaderPlayback(book:LocalBook|null,onSelect:(item:ReaderItem)
     const currentCycle=++cycle;let ended=false
     const end=()=>{
      if(token!==version.current||currentCycle!==cycle||ended)return
-     ended=true
+     ended=true;rangeDetach.current?.();rangeDetach.current=null
      if(paused.current)pendingEnd.current=true
      else finished()
     }
@@ -66,7 +69,9 @@ export function useReaderPlayback(book:LocalBook|null,onSelect:(item:ReaderItem)
      if(!audio.current)audio.current=new Audio(src)
      const player=audio.current
      player.onended=end;player.onerror=()=>{if(audio.current===player)fail('音频无法播放，请重试或检查音频文件。',token)}
-     player.currentTime=0;player.playbackRate=options.current.speed;requestPlay(player,token)
+     rangeDetach.current?.();rangeDetach.current=null
+     rangeDetach.current=prepareAudioRange(player,item,end)
+     player.playbackRate=options.current.speed;requestPlay(player,token)
     }else if('speechSynthesis'in window){
      const utterance=new SpeechSynthesisUtterance(item.text);utterance.lang='en-US';utterance.rate=options.current.speed
      const voices=window.speechSynthesis.getVoices()

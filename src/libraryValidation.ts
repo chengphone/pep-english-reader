@@ -6,6 +6,30 @@ export type VocabularyLibrary={schemaVersion:1;revision?:number;units:Vocabulary
 const object=(value:unknown):value is Record<string,any>=>!!value&&typeof value==='object'&&!Array.isArray(value)
 const text=(value:unknown,max:number):value is string=>typeof value==='string'&&!!value.trim()&&value.length<=max
 function revision(value:any){if(value!==undefined&&(!Number.isSafeInteger(value)||value<0))throw new Error('资料版本号无效，未修改本机资料。')}
+// 点读音频区间：两个字段可选，单位秒。字段缺失或终点不大于起点时按整段音频处理，
+// 这样旧教材包（没有 audioStart/audioEnd）导入后行为完全不变。
+export function normalizeAudioRange(start:unknown,end:unknown):{audioStart:number;audioEnd:number}|undefined{
+ if(start!==undefined&&(typeof start!=='number'||!Number.isFinite(start)||start<0))throw new Error('教材清单包含无效的音频起点。')
+ if(end===undefined)return undefined
+ if(typeof end!=='number'||!Number.isFinite(end)||end<0)throw new Error('教材清单包含无效的音频终点。')
+ const from=start??0
+ return end>from?{audioStart:from,audioEnd:end}:undefined
+}
+// 导入 ZIP 清单时调用：只规范 items 里的可选音频区间，不改动其他字段。
+// 无效区间会退回整段播放；字段类型错误则抛出，由导入流程提示用户。
+export function normalizeReaderManifest<T>(value:T):T{
+ if(!object(value)||!Array.isArray(value.pages))return value
+ for(const page of value.pages){
+  if(!object(page)||!Array.isArray(page.items))continue
+  for(const item of page.items){
+   if(!object(item))continue
+   const range=normalizeAudioRange(item.audioStart,item.audioEnd)
+   if(range){item.audioStart=range.audioStart;item.audioEnd=range.audioEnd}
+   else{delete item.audioStart;delete item.audioEnd}
+  }
+ }
+ return value
+}
 export function validVocabularyUnit(value:unknown):value is VocabularyUnit{
  if(!object(value)||!text(value.id,1000)||!text(value.book,200)||!text(value.title,200)||!Array.isArray(value.words)||value.words.length>10000)return false
  if(value.category!==undefined&&!['units','vocabulary','expressions'].includes(value.category))return false

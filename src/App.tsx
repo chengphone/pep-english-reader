@@ -4,6 +4,7 @@ import './App.css'
 import Bookshelf from './Bookshelf'
 import { appUpdateReady, subscribeAppUpdates, reloadUpdatedApp } from './appUpdates'
 import { renameMaterialBook } from './vocabularyStorage'
+import { normalizeReaderManifest } from './libraryValidation'
 import { buildTextHotspots, buildOcrHotspots, HOTSPOT_VERSION } from './hotspotExtraction'
 import { automaticallyTranslate, invalidateTranslationGlossary, type TranslationResult } from './automaticTranslation'
 import { extractVocabularyAppendix, parseVocabularyAppendix, persistAppendixUnits } from './vocabularyExtraction'
@@ -69,7 +70,8 @@ export default function App() {
       const { unzipSync, strFromU8 } = await import('fflate')
       const z = unzipSync(new Uint8Array(await file.arrayBuffer())), mf = z['book.json'] ?? z['manifest.json']
       if (!mf) throw new Error('ZIP 根目录缺少 book.json')
-      const manifest = JSON.parse(strFromU8(mf)) as Manifest
+      // 区间字段随清单一起导入；老清单没有这两个字段时保持整段播放。
+      const manifest = normalizeReaderManifest(JSON.parse(strFromU8(mf)) as Manifest)
       if (manifest.publisherId?.toLowerCase() !== 'pep' || !manifest.pages?.length) throw new Error('仅支持结构正确的人教 PEP 教材包')
       const assets: Record<string,Blob> = {}
       for (const [path, bytes] of Object.entries(z)) if (!path.endsWith('/')) assets[path] = new Blob([bytes], { type: mimeType(path) })
