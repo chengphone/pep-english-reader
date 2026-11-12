@@ -22,7 +22,7 @@ test('the app shell still starts from the service worker cache when offline',asy
   await context.setOffline(true)
   await page.reload({waitUntil:'domcontentloaded',timeout:30000})
   await expect(page.getByRole('heading',{name:'今天读哪一本？'})).toBeVisible({timeout:20000})
-  await expect(page.getByRole('navigation',{name:'学习导航'})).toBeVisible()
+  await expect(page.getByRole('navigation',{name:'主导航'})).toBeVisible()
   await context.setOffline(false)
 })
 
