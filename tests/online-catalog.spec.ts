@@ -62,6 +62,7 @@ test('third-grade books keep their previous IDs and sixth-grade old editions sta
   await page.getByRole('button',{name:`打开 三年级${term} 人教 PEP`,exact:true}).click()
   await expect(page.locator('iframe')).toHaveAttribute('src',`https://dd.e63.cn/reader.html?book=${id}`)
   await page.getByRole('button',{name:'返回书架',exact:true}).click()
+  await page.getByRole('button',{name:'三年级',exact:true}).click()
  }
  await page.getByRole('button',{name:'六年级',exact:true}).click()
  await expect(page.locator('#shelf-catalog-all').getByRole('region',{name:'人教 PEP'}).locator('.shelf-book-card')).toHaveCount(2)
