@@ -565,7 +565,7 @@ export default function PictureReader({
           <audio
             ref={audioRef}
             src={book.manifest.audio}
-            preload="auto"
+            preload="metadata"
             onPlay={() => { setAudioPlaying(true); if (!sentenceStopRef.current) syncToTime(audioRef.current?.currentTime ?? 0) }}
             onPause={() => setAudioPlaying(false)}
             onTimeUpdate={handleTimeUpdate}

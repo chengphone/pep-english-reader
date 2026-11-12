@@ -10,6 +10,7 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { bookCatalogEntry, defaultBookInputs, resolveBookSource, safeJoin } from './bookSource.mjs'
+import { slimPictureCatalogRows } from './pictureCatalog.mjs'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const args = process.argv.slice(2)
@@ -74,7 +75,7 @@ async function exportPictures() {
   try { data = JSON.parse(readFileSync(catalogPath, 'utf8')) } catch { throw new Error(`绘本目录不是有效 JSON：${catalogPath}`) }
   const rows = Array.isArray(data) ? data : Array.isArray(data?.books) ? data.books : []
   if (!rows.length) throw new Error(`绘本目录为空：${catalogPath}`)
-  const files = new Set(['picture-books.json'])
+  const files = new Set()
   const add = (base, value) => {
     if (typeof value !== 'string' || !value.trim() || /^[a-z]+:/i.test(value.trim())) return
     const clean = value.split('#')[0].trim().replace(/^\.\/+/, '').replace(/^\/+/, '')
@@ -105,8 +106,10 @@ async function exportPictures() {
     await cp(from, to)
     bytes += statSync(from).size
   }
-  console.log(`已整理绘本：${rows.length} 本 · ${files.size} 个文件 · ${(bytes / 1048576).toFixed(0)} MB`)
-  return { books: rows.length, files: files.size }
+  await mkdir(targetRoot, { recursive: true })
+  await writeFile(join(targetRoot, 'picture-books.json'), JSON.stringify({ books: slimPictureCatalogRows(rows) }, null, 2) + '\n')
+  console.log(`已整理绘本：${rows.length} 本 · ${files.size + 1} 个文件 · ${(bytes / 1048576).toFixed(0)} MB`)
+  return { books: rows.length, files: files.size + 1 }
 }
 
 const pictureSummary = await exportPictures()

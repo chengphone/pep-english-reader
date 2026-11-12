@@ -8,6 +8,7 @@ import { homedir, networkInterfaces } from 'node:os'
 import { extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { bookCatalogEntry, defaultBookInputs, resolveBookSource, safeJoin } from './bookSource.mjs'
+import { slimPictureCatalogRows } from './pictureCatalog.mjs'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const args = process.argv.slice(2)
@@ -84,7 +85,8 @@ function readPictureCatalog() {
   if (!existsSync(file)) return null
   try {
     const data = JSON.parse(readFileSync(file, 'utf8'))
-    return Array.isArray(data) ? data : Array.isArray(data?.books) ? data.books : []
+    const rows = Array.isArray(data) ? data : Array.isArray(data?.books) ? data.books : []
+    return slimPictureCatalogRows(rows)
   } catch {
     return null
   }
@@ -197,6 +199,13 @@ const server = createServer((request, response) => {
       if (!pictureCatalog) { response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); response.end('Not found'); return }
       const relative = decodeURIComponent(rawPathname.slice('/picture-data/'.length))
       if (!relative) { response.writeHead(404); response.end('Not found'); return }
+      // 目录只发送精简后的行（vocabulary 用数量表示），完整生词表在每本清单里。
+      if (relative === 'picture-books.json') {
+        const body = JSON.stringify({ books: pictureCatalog })
+        response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache', 'Content-Length': Buffer.byteLength(body), ...CORS })
+        response.end(request.method === 'HEAD' ? undefined : body)
+        return
+      }
       const target = safeJoin(PICTURE_DIR, relative)
       if (!target) { response.writeHead(404); response.end('Not found'); return }
       sendFile(request, response, target, { isBook: true })

@@ -315,3 +315,8 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* 路由懒加载时的轻量占位，避免首屏为了未访问页面下载 JS/CSS。 */
+.route-loading { min-height: 50vh; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); }
+.route-spinner { width: 26px; height: 26px; border: 2px solid var(--line); border-top-color: var(--green); border-radius: 50%; animation: route-spin .8s linear infinite; }
+@keyframes route-spin { to { transform: rotate(360deg); } }
