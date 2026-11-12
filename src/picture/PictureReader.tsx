@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronLeft, ChevronRight, Download, Headphones, Info, Maximize2, Mic, Minimize2, Pause, Play, Repeat, Square, Trash2, Volume2 } from 'lucide-react'
 import './PictureReader.css'
-import type { PictureBook, PictureCatalogEntry, PictureMode } from '../pictureBooks'
+import type { PictureBook, PictureCatalogEntry, PictureMode, PictureSentence } from '../pictureBooks'
 import { hasComprehension, loadPictureBook, markPicturePageComplete, readPictureProgress, writePictureProgress } from '../pictureBooks'
 import { useLearningState } from '../reader/learningStore'
 import { deleteRecording, latestRecording, readRecording, saveRecording, type RecordingMeta } from '../reader/recordingStore'
@@ -10,8 +10,8 @@ import { locateWord } from './wordLocator'
 
 const MODE_INFO: Record<PictureMode, { label: string; hint: string; detail: string }> = {
   listen: { label: '听故事', hint: '整集原声', detail: '播放本集完整原声；有已对齐的逐句时间戳时自动高亮当前句，并可用“跟随”自动翻到该句所在跨页。' },
-  self: { label: '自己读', hint: '逐句高亮', detail: '点击书页上的句子或右侧列表，高亮当前句。本集没有逐句音频，不会用合成的声音代替原音。' },
-  practice: { label: '跟读', hint: '录音比较', detail: '先听整集原声，再选中句子录音。只有你主动点击并允许麦克风时才开始录音，录音保存在本机。' },
+  self: { label: '自己读', hint: '逐句高亮', detail: '点击书页上的句子或右侧列表，回放该句在整集原声中的片段并高亮；不会用合成的声音代替原音。' },
+  practice: { label: '跟读', hint: '录音比较', detail: '先点句子听原声，再选中句子录音。只有你主动点击并允许麦克风时才开始录音，录音保存在本机。' },
 }
 const LEVELS: Record<string, string> = { starter: '启蒙', beginner: '入门', elementary: '初级', intermediate: '进阶' }
 
@@ -71,6 +71,8 @@ export default function PictureReader({
   const [offlineSaving, setOfflineSaving] = useState(false)
   const [offlineError, setOfflineError] = useState('')
   const audioRef = useRef<HTMLAudioElement>(null)
+  const sentenceStopRef = useRef<{ end: number; id: string } | null>(null)
+  const pendingSentenceRef = useRef<{ start: number } | null>(null)
   const paperRef = useRef<HTMLDivElement>(null)
   const recordingAudioRef = useRef<HTMLAudioElement>(null)
   const mediaRef = useRef<MediaRecorder | null>(null)
@@ -86,6 +88,8 @@ export default function PictureReader({
     setError('')
     setAudioError('')
     setAudioPlaying(false)
+    sentenceStopRef.current = null
+    pendingSentenceRef.current = null
     setCurrentTime(0)
     setDuration(0)
     loadPictureBook(entry).then(next => {
@@ -119,6 +123,7 @@ export default function PictureReader({
     return rows.sort((left, right) => left.start - right.start)
   }, [book])
   const hasTimestamps = timeline.length > 0
+  const pageHasTimestamps = page?.sentences.some(sentence => typeof sentence.start === 'number') ?? false
 
   useEffect(() => {
     if (!book) return
@@ -177,6 +182,27 @@ export default function PictureReader({
     audio.loop = loop
   }, [speed, loop, book?.manifest.audio])
 
+  // timeupdate 大约每秒只触发 4 次，可能多播到下一句开头；播放时再用
+  // requestAnimationFrame 精确盯住句末，后台标签页仍由 timeupdate 兜底。
+  useEffect(() => {
+    if (!audioPlaying) return
+    let frame = 0
+    const tick = () => {
+      const audio = audioRef.current
+      const stop = sentenceStopRef.current
+      if (audio && stop && audio.currentTime >= stop.end - 0.02) {
+        sentenceStopRef.current = null
+        audio.pause()
+        setCurrentTime(stop.end)
+        setSelectedId(stop.id)
+        return
+      }
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [audioPlaying])
+
   useEffect(() => {
     if (!book || !selected || mode !== 'practice') return
     let live = true
@@ -203,6 +229,8 @@ export default function PictureReader({
 
   function changeMode(next: PictureMode) {
     setMode(next)
+    sentenceStopRef.current = null
+    pendingSentenceRef.current = null
     if (next !== 'listen') audioRef.current?.pause()
     if (next !== 'practice') stopRecording(true)
   }
@@ -218,10 +246,39 @@ export default function PictureReader({
   function toggleAudio() {
     const audio = audioRef.current
     if (!audio) return
+    sentenceStopRef.current = null
+    pendingSentenceRef.current = null
     if (audio.paused) {
       setAudioError('')
       void audio.play().catch(() => setAudioError('整集音频无法播放，请检查本地服务器或音频文件。'))
     } else audio.pause()
+  }
+
+  // 绘本没有逐句音频文件，但清单里有已校对的逐句时间戳。点句子时从整集
+  // 原声里定位到该句并只播这一段，播完自动暂停；没有时间戳时只选中。
+  function selectSentence(sentence: PictureSentence) {
+    setSelectedId(sentence.id)
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+    setSpeakingWord('')
+    if (recordingState === 'recording') stopRecording(true)
+    recordingAudioRef.current?.pause()
+    const audio = audioRef.current
+    if (!audio) return
+    const start = sentence.start
+    if (typeof start !== 'number' || !Number.isFinite(start)) return
+    const nextStart = timeline.find(row => row.start > start)?.start
+    const end = typeof sentence.end === 'number' && Number.isFinite(sentence.end) && sentence.end > start
+      ? sentence.end
+      : nextStart
+    sentenceStopRef.current = typeof end === 'number' && end > start ? { end, id: sentence.id } : null
+    setAudioError('')
+    if (audio.readyState >= 1) {
+      pendingSentenceRef.current = null
+      try { audio.currentTime = start } catch { pendingSentenceRef.current = { start } }
+    } else {
+      pendingSentenceRef.current = { start }
+    }
+    void audio.play().catch(() => setAudioError('整集音频无法播放，请检查本地服务器或音频文件。'))
   }
 
   function syncToTime(value: number) {
@@ -237,9 +294,26 @@ export default function PictureReader({
     if (followAudio && mode === 'listen' && target.pageIndex !== pageIndex) setPageIndex(target.pageIndex)
   }
 
+  function handleTimeUpdate(event: SyntheticEvent<HTMLAudioElement>) {
+    const audio = event.currentTarget
+    const time = audio.currentTime
+    const stop = sentenceStopRef.current
+    if (stop && time >= stop.end - 0.02) {
+      sentenceStopRef.current = null
+      audio.pause()
+      setCurrentTime(stop.end)
+      setSelectedId(stop.id)
+      return
+    }
+    setCurrentTime(time)
+    syncToTime(time)
+  }
+
   function seek(value: number) {
     const audio = audioRef.current
     if (!audio || !Number.isFinite(value)) return
+    sentenceStopRef.current = null
+    pendingSentenceRef.current = null
     audio.currentTime = value
     setCurrentTime(value)
     syncToTime(value)
@@ -440,9 +514,9 @@ export default function PictureReader({
                     type="button"
                     className={`pbook-hotspot${selectedId === sentence.id ? ' is-selected' : ''}`}
                     style={{ left: `${rect[0] * 100}%`, top: `${rect[1] * 100}%`, width: `${rect[2] * 100}%`, height: `${rect[3] * 100}%` }}
-                    aria-label={`选择句子：${sentence.text}`}
+                    aria-label={`${typeof sentence.start === 'number' ? '朗读' : '选择'}句子：${sentence.text}`}
                     title={sentence.text}
-                    onClick={() => setSelectedId(sentence.id)}
+                    onClick={() => selectSentence(sentence)}
                   />)}
                 </span>)}
               </div>
@@ -486,17 +560,23 @@ export default function PictureReader({
             <span className="pbook-player-time">{formatTime(duration || book.manifest.audioDuration || 0)}</span>
             <label className="pbook-player-speed"><span className="sr-only">播放速度</span><select value={speed} onChange={event => setSpeed(Number(event.target.value))} aria-label="播放速度"><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option></select></label>
           </div>
-          <p className="pbook-player-note"><Info size={13}/>{hasTimestamps ? '播放时会按已对齐的句子时间戳自动高亮；“跟随”控制是否自动翻到该句所在的跨页。' : '本集没有经过校对的逐句时间戳；句子高亮由点击控制，不伪造自动同步。'}</p>
+          <p className="pbook-player-note"><Info size={13}/>{hasTimestamps ? '播放时会按已对齐的句子时间戳自动高亮；点击句子可单独回放该句；“跟随”控制是否自动翻到该句所在的跨页。' : '本集没有经过校对的逐句时间戳；句子高亮由点击控制，不伪造自动同步。'}</p>
           {audioError && <p className="pbook-player-error" role="alert">{audioError}</p>}
           <audio
             ref={audioRef}
             src={book.manifest.audio}
             preload="auto"
-            onPlay={() => { setAudioPlaying(true); syncToTime(audioRef.current?.currentTime ?? 0) }}
+            onPlay={() => { setAudioPlaying(true); if (!sentenceStopRef.current) syncToTime(audioRef.current?.currentTime ?? 0) }}
             onPause={() => setAudioPlaying(false)}
-            onTimeUpdate={event => { const time = event.currentTarget.currentTime; setCurrentTime(time); syncToTime(time) }}
-            onLoadedMetadata={event => setDuration(event.currentTarget.duration || book.manifest.audioDuration || 0)}
-            onEnded={() => setAudioPlaying(false)}
+            onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={event => {
+              setDuration(event.currentTarget.duration || book.manifest.audioDuration || 0)
+              const pending = pendingSentenceRef.current
+              if (!pending) return
+              pendingSentenceRef.current = null
+              try { event.currentTarget.currentTime = pending.start } catch { /* 忽略 */ }
+            }}
+            onEnded={() => { sentenceStopRef.current = null; setAudioPlaying(false) }}
             onError={() => setAudioError('整集音频加载失败，请检查本地服务器。')}
           />
         </div>
@@ -528,9 +608,9 @@ export default function PictureReader({
         {offlineError && <p className="pbook-offline-error" role="alert">{offlineError}</p>}
 
         <section className="pbook-panel-section" aria-labelledby="pbook-sentences-title">
-          <header><h2 id="pbook-sentences-title">本页句子</h2><span>{page?.sentences.length ?? 0} 句</span></header>
+          <header><h2 id="pbook-sentences-title">本页句子</h2><span>{page?.sentences.length ?? 0} 句{pageHasTimestamps ? ' · 点击朗读' : ''}</span></header>
           <div className="pbook-sentence-list">
-            {(page?.sentences ?? []).map((sentence, index) => <button key={sentence.id} type="button" className={`pbook-sentence${selectedId === sentence.id ? ' is-selected' : ''}`} aria-pressed={selectedId === sentence.id} onClick={() => setSelectedId(sentence.id)}>
+            {(page?.sentences ?? []).map((sentence, index) => <button key={sentence.id} type="button" className={`pbook-sentence${selectedId === sentence.id ? ' is-selected' : ''}`} aria-pressed={selectedId === sentence.id} title={typeof sentence.start === 'number' ? '点击朗读这句' : undefined} onClick={() => selectSentence(sentence)}>
               <span className="pbook-sentence-index">{String(index + 1).padStart(2, '0')}</span>
               <span className="pbook-sentence-text">{sentence.text}{sentence.continuedFrom ? <small>接上页 {sentence.continuedFrom}</small> : null}</span>
             </button>)}
