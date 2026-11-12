@@ -2,7 +2,7 @@
   "name": "english-textbook-reader",
   "private": true,
   "version": "0.0.0",
-  "description": "人教版 PEP 小学英语在线点读、跟读与听写 PWA",
+  "description": "英语教材在线点读、跟读与听写 PWA",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -16,6 +16,8 @@
     "build": "tsc -b && vite build && node tools/build-sw.mjs",
     "demo:build": "node tools/create-demo-book.mjs",
     "book:serve": "node tools/serve-online.mjs",
+    "book:prepare-picture": "node tools/build-picture-books.mjs",
+    "book:sync-picture": "node tools/sync-picture-audio.mjs",
     "book:export": "node tools/export-online.mjs",
     "book:build-begin": "node tools/build-begin-book.mjs",
     "lint": "oxlint",

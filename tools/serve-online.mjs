@@ -2,9 +2,9 @@
 // 本机在线教材服务器：同时提供构建后的应用和多本教材包。
 // 手机、平板和电脑在同一 Wi-Fi 下打开终端打印的地址即可点读，无需导入。
 // 教材目录在站点根路径 /book-data/ 下，不进入 dist，也不会被提交到仓库。
-import { createReadStream, existsSync, statSync } from 'node:fs'
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { networkInterfaces } from 'node:os'
+import { homedir, networkInterfaces } from 'node:os'
 import { extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { bookCatalogEntry, defaultBookInputs, resolveBookSource, safeJoin } from './bookSource.mjs'
@@ -34,6 +34,8 @@ const HOST = option('host', '0.0.0.0')
 const BASE = `/${String(option('base', '/pep-english-reader/')).replace(/^\/+|\/+$/g, '')}/`
 const DIST = resolve(ROOT, option('dist', 'dist'))
 const BOOK_INPUTS = options('book').length ? options('book').map(value => resolve(value)) : defaultBookInputs()
+// 绘本包由 tools/build-picture-books.mjs 生成，默认放在下载目录，不进入仓库。
+const PICTURE_DIR = resolve(option('picture', join(homedir(), 'Downloads', 'journey-to-the-west-reader')))
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -75,6 +77,17 @@ function cacheHeaders(pathname, isBook) {
   if (pathname.endsWith('.html')) return 'no-cache'
   if (pathname.includes('/assets/')) return 'public, max-age=31536000, immutable'
   return 'public, max-age=3600'
+}
+
+function readPictureCatalog() {
+  const file = join(PICTURE_DIR, 'picture-books.json')
+  if (!existsSync(file)) return null
+  try {
+    const data = JSON.parse(readFileSync(file, 'utf8'))
+    return Array.isArray(data) ? data : Array.isArray(data?.books) ? data.books : []
+  } catch {
+    return null
+  }
 }
 
 function sendFile(request, response, path, { isBook = false, cors = true } = {}) {
@@ -148,8 +161,11 @@ const CORS = {
 
 if (!existsSync(join(DIST, 'index.html'))) fail(`找不到 ${join(DIST, 'index.html')}，请先运行 npm run build。`)
 const { books, catalog } = await prepareBooks()
+const pictureCatalog = readPictureCatalog()
 console.log('教材：')
 for (const book of books) console.log(`  ${book.title} · ${book.pages} 页`)
+if (pictureCatalog) console.log(`绘本：${pictureCatalog.length} 本（${PICTURE_DIR}）`)
+else console.log(`绘本：未找到 ${join(PICTURE_DIR, 'picture-books.json')}，绘本馆将显示空状态。`)
 
 const server = createServer((request, response) => {
   if (request.method === 'OPTIONS') {
@@ -175,6 +191,15 @@ const server = createServer((request, response) => {
     if (pathname === '/' || pathname === BASE.slice(0, -1)) {
       response.writeHead(302, { Location: BASE })
       response.end()
+      return
+    }
+    if (rawPathname.startsWith('/picture-data/')) {
+      if (!pictureCatalog) { response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); response.end('Not found'); return }
+      const relative = decodeURIComponent(rawPathname.slice('/picture-data/'.length))
+      if (!relative) { response.writeHead(404); response.end('Not found'); return }
+      const target = safeJoin(PICTURE_DIR, relative)
+      if (!target) { response.writeHead(404); response.end('Not found'); return }
+      sendFile(request, response, target, { isBook: true })
       return
     }
     if (rawPathname.startsWith('/book-data/')) {
@@ -219,12 +244,14 @@ server.listen(PORT, HOST, () => {
   console.log('\n在线点读已启动\n')
   console.log('电脑：')
   console.log(`  书架      ${local}`)
+  if (pictureCatalog) console.log(`  绘本馆    ${local}?view=library`)
   for (const book of books) console.log(`  ${book.title}  ${local}${query(book.id)}`)
   if (addresses.length) {
     console.log('手机/平板（同一 Wi-Fi）：')
     for (const address of addresses) {
       const origin = `http://${address}:${PORT}${BASE}`
       console.log(`  书架      ${origin}`)
+      if (pictureCatalog) console.log(`  绘本馆    ${origin}?view=library`)
       for (const book of books) console.log(`  ${book.title}  ${origin}${query(book.id)}`)
     }
   } else {

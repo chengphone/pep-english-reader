@@ -7,6 +7,7 @@ import type { LocalBook, ReaderItem, ReaderManifest, ReaderPage, ReaderResource,
 const DEFAULT_CATALOG = import.meta.env.BASE_URL + 'remote-books.json'
 const PAGE_KEY = 'pep:remote-page:'
 const TRANSLATION_KEY = 'pep:remote-translation:'
+const ITEMS_KEY = 'pep:remote-items:'
 
 function isObject(value: unknown): value is Record<string, any> { return !!value && typeof value === 'object' && !Array.isArray(value) }
 function isRect(value: unknown): value is [number, number, number, number] { return Array.isArray(value) && value.length === 4 && value.every(number => typeof number === 'number' && Number.isFinite(number)) }
@@ -47,6 +48,8 @@ function normalizeCatalog(value: unknown, base: URL): RemoteBookEntry[] {
       audio: Number.isFinite(audio) && audio > 0 ? Math.trunc(audio) : undefined,
       videos: Number.isFinite(videos) && videos > 0 ? Math.trunc(videos) : undefined,
       cover: typeof row.cover === 'string' && row.cover.trim() ? new URL(row.cover, base).href : undefined,
+      series: typeof row.series === 'string' && row.series.trim() ? row.series.trim() : undefined,
+      publisher: typeof row.publisher === 'string' && row.publisher.trim() ? row.publisher.trim() : undefined,
     })
   }
   return entries
@@ -91,7 +94,7 @@ export async function loadRemoteBook(entry: RemoteBookEntry): Promise<LocalBook>
   const pages: ReaderPage[] = manifest.pages.map(page => ({
     ...page,
     image: new URL(page.image, manifestUrl).href,
-    items: page.items.map(item => ({
+    items: (readRemotePageItems(bookId, page.page) ?? page.items).map(item => ({
       ...item,
       order: Number.isFinite(item.order) ? item.order : 0,
       rects: Array.isArray(item.rects) ? item.rects.filter(isRect) : [],
@@ -112,6 +115,7 @@ export async function loadRemoteBook(entry: RemoteBookEntry): Promise<LocalBook>
     manifest: { ...manifest, bookId, title: manifest.title || entry.title, pages },
     assets: {},
     remote: true,
+    manifestUrl: manifestUrl.href,
     lastPage: readRemotePage(bookId),
   }
 }
@@ -137,6 +141,47 @@ export function writeRemoteTranslation(bookId: string, itemId: string, text: str
   const key = TRANSLATION_KEY + bookId + ':' + itemId
   if (!text.trim()) { try { localStorage.removeItem(key) } catch { /* ignore */ } return }
   writeStorage(key, text.trim())
+}
+
+export function readRemotePageItems(bookId: string, page: number): ReaderItem[] | undefined {
+  const raw = readStorage(ITEMS_KEY + bookId + ':' + page)
+  if (!raw) return undefined
+  try {
+    const value = JSON.parse(raw)
+    if (!Array.isArray(value)) return undefined
+    return value.filter((item): item is ReaderItem =>
+      !!item && typeof item === 'object' &&
+      typeof item.id === 'string' && !!item.id &&
+      typeof item.text === 'string' &&
+      Array.isArray(item.rects)
+    ).map(item => ({
+      ...item,
+      order: Number.isFinite(item.order) ? item.order : 0,
+      rects: item.rects.filter(isRect),
+    }))
+  } catch {
+    return undefined
+  }
+}
+
+export function writeRemotePageItems(bookId: string, page: number, items: ReaderItem[]) {
+  const key = ITEMS_KEY + bookId + ':' + page
+  try {
+    if (!items.length) localStorage.removeItem(key)
+    else localStorage.setItem(key, JSON.stringify(items))
+  } catch {
+    // 存储失败时仍然让当前页面使用内存中的修改。
+  }
+}
+
+export function withRemoteItems(book: LocalBook, page: number, items: ReaderItem[]): LocalBook {
+  return {
+    ...book,
+    manifest: {
+      ...book.manifest,
+      pages: book.manifest.pages.map(row => row.page === page ? { ...row, items } : row),
+    },
+  }
 }
 
 export function withRemoteTranslation(book: LocalBook, item: ReaderItem, text: string): LocalBook {

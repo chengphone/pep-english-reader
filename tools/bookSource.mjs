@@ -72,6 +72,8 @@ export function bookCatalogEntry(source, mount) {
     })
   }
   const audio = audioKeys.size, videos = videoKeys.size
+  const series = typeof source.manifest.series === 'string' && source.manifest.series.trim() ? source.manifest.series.trim() : undefined
+  const publisher = typeof source.manifest.publisher === 'string' && source.manifest.publisher.trim() ? source.manifest.publisher.trim() : undefined
   return {
     id: source.id,
     title: source.title,
@@ -81,6 +83,8 @@ export function bookCatalogEntry(source, mount) {
     ...(videos ? { videos } : {}),
     manifest: `${mount}/book.json`,
     ...(cover ? { cover } : {}),
+    ...(series ? { series } : {}),
+    ...(publisher ? { publisher } : {}),
   }
 }
 

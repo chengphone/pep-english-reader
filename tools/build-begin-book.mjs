@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // 把 Let's Go Begin 1 的学生用书 PDF、课堂音频和课堂动漫整理成阅读器教材包。
 // 生成物只放在本机（默认 ~/Downloads/lets-go-begin-1-reader），不会进入仓库。
-import { existsSync, readdirSync } from 'node:fs'
+// 点读热区可选传 --items <json>：格式为 { "6": [{ id, text, translation?, order, rects, audio, audioStart, audioEnd }] }，
+// 数据文件应放在仓库外，避免教材内容进入公开 Git 历史。
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { cp, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
@@ -19,6 +21,7 @@ const PDF = resolve(option('pdf', join(homedir(), 'Downloads', '学生用书-SB.
 const AUDIO_DIR = resolve(option('audio', join(homedir(), 'Downloads', '课堂音频')))
 const VIDEO_DIR = resolve(option('videos', join(homedir(), 'Downloads', '课堂动漫视频')))
 const OUT = resolve(option('out', join(homedir(), 'Downloads', 'lets-go-begin-1-reader')))
+const ITEMS_FILE = option('items', '')
 const BUILD = OUT + '.building'
 const DPI = String(Number(option('dpi', 150)) || 150)
 
@@ -114,6 +117,23 @@ if (!existsSync(join(OUT, 'book.json')) && existsSync(OUT) && readdirSync(OUT).l
 
 const AUDIO_FILES = collectFiles(AUDIO_DIR, '.mp3')
 const VIDEO_FILES = collectFiles(VIDEO_DIR, '.mp4')
+// 点读热区数据单独放在仓库外的 JSON 里（页码 → 条目数组），避免教材词表进入公开仓库。
+const itemsByPage = new Map()
+if (ITEMS_FILE) {
+  const source = resolve(ITEMS_FILE)
+  if (!existsSync(source)) fail(`找不到点读数据文件：${source}`)
+  const data = JSON.parse(readFileSync(source, 'utf8'))
+  for (const [key, items] of Object.entries(data)) {
+    const page = Number(key)
+    if (!Number.isInteger(page) || page < 1 || page > totalPages) fail(`点读数据的页码无效：${key}`)
+    if (!Array.isArray(items)) fail(`第 ${page} 页的点读数据必须是数组`)
+    for (const item of items) {
+      if (!item?.id || !item?.text || !Array.isArray(item.rects) || !item.rects.length) fail(`第 ${page} 页存在不完整的点读条目`)
+    }
+    itemsByPage.set(page, items)
+  }
+  console.log(`点读数据：${itemsByPage.size} 页 / ${[...itemsByPage.values()].reduce((sum, items) => sum + items.length, 0)} 条`)
+}
 const pages = new Map()
 function pageResources(page) {
   if (!pages.has(page)) pages.set(page, [])
@@ -220,15 +240,35 @@ for (let page = 1; page <= totalPages; page++) {
     page,
     printedPage: page,
     image: `pages/${pad3(page)}.jpg`,
-    items: [],
+    items: [...(itemsByPage.get(page) ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     ...(resources.length ? { resources } : {}),
   })
 }
+// 书籍目录：每课取 Learn 页作为入口，最后两课和告别歌保留书上的标题。
+// page 是 book.json 里的物理页码（1 起），与阅读器左侧目录的跳转一致。
+const toc = [
+  { title: '课程开场', page: 1, level: 1, subtitle: '出版信息 · 使用说明' },
+  { title: "Let's Get Ready!", page: 4, level: 1, subtitle: '第 4–5 页 · Listen and point' },
+  ...LESSONS.map(lesson => ({ title: `Lesson ${lesson.n} · ${lesson.letter}`, page: lesson.learn, level: 1 })),
+  { title: 'Lesson 27 · The Alphabet', page: 58, level: 1, subtitle: '字母歌' },
+  { title: "Lesson 28 · Let's Talk", page: 61, level: 1, subtitle: '告别对话' },
+  { title: 'The Goodbye Song', page: 61, level: 2, subtitle: '再见歌' },
+]
 const manifest = {
   schemaVersion: 1,
   bookId: BOOK_ID,
   title: TITLE,
   publisherId: 'oxford',
+  series: "Oxford Let's Go",
+  publisher: 'Oxford University Press',
+  toc,
+  // 目录主题分组按书上页码区间；BookToc 会用它折叠 30+ 条目录。
+  tocGroups: [
+    { title: '课程开场', from: 1, to: 5 },
+    { title: 'Lesson 1–8', from: 6, to: 21 },
+    { title: 'Lesson 9–16', from: 22, to: 37 },
+    { title: 'Lesson 17–28', from: 38, to: 61 },
+  ],
   pages: manifestPages,
 }
 await writeFile(join(BUILD, 'book.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8')

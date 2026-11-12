@@ -3,6 +3,8 @@ const CACHE = 'pep-reader-shell-v3-word-audio'
 // online is still available offline after an update. It is not shell-prefixed, so
 // the activation cleanup below leaves it alone.
 const DATA_CACHE = 'pep-reader-data-v1'
+// 在线教材和绘本的页面、音频和视频。缓存只写入本机；不随应用版本清理。
+const BOOK_CACHE = 'pep-reader-books-v1'
 const BASE = '/pep-english-reader/'
 const CACHE_PREFIX = 'pep-reader-shell-'
 const isFreshData = pathname => (pathname.startsWith(BASE + 'data/') && pathname.endsWith('.json')) || pathname === BASE + 'audio/library-manifest.json' || pathname === BASE + 'remote-books.json'
@@ -43,7 +45,27 @@ self.addEventListener('activate', event => {
 })
 self.addEventListener('fetch', event => {
   const request = event.request, url = new URL(request.url)
-  if (request.method !== 'GET' || url.origin !== self.location.origin || !url.pathname.startsWith(BASE)) return
+  const bookData = url.pathname.startsWith('/book-data/') || url.pathname.startsWith('/picture-data/')
+  if (request.method !== 'GET' || url.origin !== self.location.origin || (!url.pathname.startsWith(BASE) && !bookData)) return
+  if (bookData) {
+    event.respondWith((async () => {
+      const cache = await caches.open(BOOK_CACHE).catch(() => undefined)
+      const cached = await cache?.match(request, {ignoreVary: true}).catch(() => undefined)
+      // “离线保存”用 cache: 'reload' 重新抓取；目录和清单用 no-store 请求，
+      // 两者都应绕过已缓存的副本，而图片和音频继续 cache-first。
+      if (cached && request.cache !== 'reload' && request.cache !== 'no-store') return cached
+      try {
+        const response = await fetch(request)
+        if ((response.ok || response.type === 'opaque') && cache) {
+          await cache.put(request, response.clone()).catch(() => {})
+        }
+        return response
+      } catch {
+        return cached || Response.error()
+      }
+    })())
+    return
+  }
   event.respondWith((async () => {
     // Data files are small and change between releases; fetch them fresh and keep the
     // cached copy only as an offline fallback. Hashed build assets, audio and images
