@@ -50,13 +50,19 @@ self.addEventListener('fetch', event => {
   if (bookData) {
     event.respondWith((async () => {
       const cache = await caches.open(BOOK_CACHE).catch(() => undefined)
-      const cached = await cache?.match(request, {ignoreVary: true}).catch(() => undefined)
-      // “离线保存”用 cache: 'reload' 重新抓取；目录和清单用 no-store 请求，
-      // 两者都应绕过已缓存的副本，而图片和音频继续 cache-first。
-      if (cached && request.cache !== 'reload' && request.cache !== 'no-store') return cached
+      let cached = await cache?.match(request, {ignoreVary: true}).catch(() => undefined)
+      // 旧版本可能把 206 分段响应写进缓存；分段响应不能当作完整文件复用。
+      if (cached?.status === 206) cached = undefined
+      const range = request.headers.has('Range')
+      const bypass = request.cache === 'reload' || request.cache === 'no-store'
+      const revalidate = request.cache === 'no-cache'
+      // 音频/视频的 Range 请求直接走网络和浏览器 HTTP 缓存，避免把 206 写进
+      // Cache Storage；图片和完整音频继续 cache-first。
+      if (cached && !bypass && !revalidate && !range) return cached
       try {
-        const response = await fetch(request)
-        if ((response.ok || response.type === 'opaque') && cache) {
+        const response = await fetch(request, revalidate ? { cache: 'no-cache' } : undefined)
+        if (response.status === 304 && cached) return cached
+        if (response.status === 200 && cache) {
           await cache.put(request, response.clone()).catch(() => {})
         }
         return response

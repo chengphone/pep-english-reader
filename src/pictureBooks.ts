@@ -125,7 +125,7 @@ export async function loadPictureCatalog(): Promise<PictureCatalogEntry[]> {
   const url = pictureCatalogUrl()
   const explicit = new URL(location.href).searchParams.has('picture-catalog')
   try {
-    return await fetchWithTimeout(url, { cache: 'no-store' }, async response => {
+    return await fetchWithTimeout(url, { cache: 'no-cache' }, async response => {
       if (response.status === 404) return []
       if (!response.ok) throw new Error(`绘本目录加载失败（HTTP ${response.status}）。`)
       let data: unknown
@@ -209,7 +209,7 @@ function normalizeManifest(value: unknown, base: URL): PictureBookManifest | und
 
 export async function loadPictureBook(entry: PictureCatalogEntry): Promise<PictureBook> {
   const manifestUrl = new URL(entry.manifest, location.href)
-  const manifest = await fetchWithTimeout(manifestUrl, { cache: 'no-store' }, async response => {
+  const manifest = await fetchWithTimeout(manifestUrl, { cache: 'no-cache' }, async response => {
     if (!response.ok) throw new Error(`绘本清单无法加载（HTTP ${response.status}）。`)
     let data: unknown
     try { data = await response.json() } catch { throw new Error('绘本清单格式无效。') }

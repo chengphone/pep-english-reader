@@ -14,7 +14,7 @@ import StatsDialog from './StatsDialog'
 import TeacherModeDialog from './TeacherModeDialog'
 import { setTeacherMode, useTeacherMode } from './adminMode'
 import { activeTocIndex, buildBookToc } from './tocEntries'
-import { usePageAudio } from './usePageAudio'
+import { preloadAudio, usePageAudio } from './usePageAudio'
 import { useReadingFullscreen } from './useReadingFullscreen'
 import { useStudyTimer } from './useStudyTimer'
 import { bookmarksFor, dueForBook, recordLastChapter, recordPageVisit, recordRecordingResult, recordWordResult, setActiveProfile, toggleBookmark, useLearningState } from './learningStore'
@@ -84,6 +84,8 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
   const activeToc = tocEntries[activeTocIndex(tocEntries, page?.page ?? pageIndex + 1)]
   const section = activeToc ? [activeToc.title, activeToc.subtitle].filter(Boolean).join(' · ') : undefined
   const pageAudio = usePageAudio(page)
+  const audioPlayingRef = useRef(false)
+  useEffect(() => { audioPlayingRef.current = pageAudio.playing }, [pageAudio.playing])
   const sortedItems = useMemo(() => [...(page?.items ?? [])].sort((a, b) => a.order - b.order), [page])
   const pageAudios = pageResources.filter(resource => resource.kind === 'audio')
   const pageAudioIndex = pageAudios.findIndex(resource => resource.id === pageAudio.activeId)
@@ -143,6 +145,23 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
     setHotspotEditing(false)
     setDraftItems([])
   }, [pageIndex])
+  // 提前拉取下一页图片，翻页时直接命中浏览器/SW 缓存；不阻塞当前页。
+  useEffect(() => {
+    const next = book.manifest.pages[pageIndex + 1]
+    if (!next?.image) return
+    const image = new Image()
+    image.decoding = 'async'
+    image.src = next.image
+  }, [book.id, book.manifest.pages, pageIndex])
+  // 页面稳定后再预取本页第一段音频；如果用户已经开始播放就跳过，避免抢带宽。
+  useEffect(() => {
+    const url = page?.items.find(item => item.audio)?.audio ?? page?.resources?.find(resource => resource.kind === 'audio')?.src
+    if (!url) return
+    const timer = window.setTimeout(() => {
+      if (!audioPlayingRef.current) preloadAudio(url)
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [page])
   useEffect(() => {
     if (!hasLearning && narrow()) setPanelOpen(false)
   }, [pageIndex, hasLearning])

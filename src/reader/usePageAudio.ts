@@ -28,6 +28,19 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
 }
 
+// 页面打开后预取本页第一段音频的完整文件，让第一次点击播放直接命中
+// Service Worker / 浏览器缓存；不预取视频，也不在省流模式或 2G 下预取。
+const preloadedAudio = new Set<string>()
+export function preloadAudio(url: string) {
+  if (!url || preloadedAudio.has(url)) return
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+  if (connection?.saveData || connection?.effectiveType === 'slow-2g' || connection?.effectiveType === '2g') return
+  preloadedAudio.add(url)
+  void fetch(url, { cache: 'force-cache' })
+    .then(response => response.ok ? response.arrayBuffer() : undefined)
+    .catch(() => { preloadedAudio.delete(url) })
+}
+
 export function usePageAudio(page: ReaderPage | undefined): PageAudioController {
   const resources = useMemo(
     () => (page?.resources ?? []).filter(resource => resource.kind === 'audio'),

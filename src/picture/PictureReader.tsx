@@ -71,6 +71,7 @@ export default function PictureReader({
   const [offlineSaving, setOfflineSaving] = useState(false)
   const [offlineError, setOfflineError] = useState('')
   const audioRef = useRef<HTMLAudioElement>(null)
+  const paperRef = useRef<HTMLDivElement>(null)
   const recordingAudioRef = useRef<HTMLAudioElement>(null)
   const mediaRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -138,6 +139,30 @@ export default function PictureReader({
     const current = book.manifest.pages[pageIndex]
     setSelectedId(previous => current?.sentences.some(sentence => sentence.id === previous) ? previous : current?.sentences[0]?.id ?? null)
     setRecordError('')
+  }, [book?.id, pageIndex])
+
+  // 放大后一次只显示跨页的一半。音频跟随切换句子或跨页时，把横向滚动
+  // 对准当前句所在的那一页，否则会出现“声音在右页、屏幕还停在左页”。
+  useEffect(() => {
+    if (!zoomed) return
+    const paper = paperRef.current
+    if (!paper) return
+    const sentence = page?.sentences.find(item => item.id === selectedId)
+    const rect = sentence?.rects[0]
+    if (!rect) return
+    const rightPage = rect[0] + rect[2] / 2 >= 0.5
+    const target = rightPage ? paper.scrollWidth - paper.clientWidth : 0
+    if (Math.abs(paper.scrollLeft - target) < 8) return
+    paper.scrollTo({ left: target, behavior: 'smooth' })
+  }, [zoomed, pageIndex, selectedId, book?.id])
+
+  // 预取下一张跨页图，翻页时直接命中缓存。
+  useEffect(() => {
+    const next = book?.manifest.pages[pageIndex + 1]
+    if (!next?.image) return
+    const image = new Image()
+    image.decoding = 'async'
+    image.src = next.image
   }, [book?.id, pageIndex])
 
   useEffect(() => {
@@ -404,10 +429,10 @@ export default function PictureReader({
 
     <main className="pbook-layout">
       <section className="pbook-stage" aria-label="绘本阅读区">
-        <div className={`pbook-paper${zoomed ? ' is-zoomed' : ''}`}>
+        <div ref={paperRef} className={`pbook-paper${zoomed ? ' is-zoomed' : ''}`}>
           <div className="pbook-canvas">
             {page && <>
-              <img src={page.image} alt={`第 ${page.displayPage} 页原版绘本跨页`} draggable={false}/>
+              <img src={page.image} alt={`第 ${page.displayPage} 页原版绘本跨页`} draggable={false} fetchPriority="high" decoding="async"/>
               <div className="pbook-hotspots" aria-hidden="false">
                 {page.sentences.map(sentence => <span key={sentence.id} className="pbook-sentence-overlay">
                   {sentence.rects.map((rect, index) => <button
@@ -466,7 +491,7 @@ export default function PictureReader({
           <audio
             ref={audioRef}
             src={book.manifest.audio}
-            preload="metadata"
+            preload="auto"
             onPlay={() => { setAudioPlaying(true); syncToTime(audioRef.current?.currentTime ?? 0) }}
             onPause={() => setAudioPlaying(false)}
             onTimeUpdate={event => { const time = event.currentTarget.currentTime; setCurrentTime(time); syncToTime(time) }}

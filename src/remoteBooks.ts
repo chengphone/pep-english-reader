@@ -82,7 +82,7 @@ function validManifest(value: unknown): value is ReaderManifest {
 
 export async function loadRemoteBook(entry: RemoteBookEntry): Promise<LocalBook> {
   const manifestUrl = new URL(entry.manifest, location.href)
-  const manifest = await fetchWithTimeout(manifestUrl, { cache: 'no-store' }, async response => {
+  const manifest = await fetchWithTimeout(manifestUrl, { cache: 'no-cache' }, async response => {
     if (!response.ok) throw new Error(`在线教材清单无法加载（HTTP ${response.status}）。`)
     let data: unknown
     try { data = await response.json() } catch { throw new Error('在线教材清单格式无效。') }
