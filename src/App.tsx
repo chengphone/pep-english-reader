@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } fro
 import { BookOpen, X } from 'lucide-react'
 import './App.css'
 import Bookshelf from './Bookshelf'
+import OnlineReader from './reader/OnlineReader'
 import { appUpdateReady, subscribeAppUpdates, reloadUpdatedApp } from './appUpdates'
 import { renameMaterialBook } from './vocabularyStorage'
 import { normalizeReaderManifest } from './libraryValidation'
@@ -26,7 +27,6 @@ import { nextPictureInSeries } from './pictureSeries'
 const VocabularyStudio = lazy(() => import('./VocabularyStudio'))
 const FollowAlong = lazy(() => import('./FollowAlong'))
 const LocalReader = lazy(() => import('./reader/LocalReader'))
-const OnlineReader = lazy(() => import('./reader/OnlineReader'))
 const TextbooksPage = lazy(() => import('./site/TextbooksPage'))
 const PictureLibrary = lazy(() => import('./site/PictureLibrary'))
 const PracticeCenter = lazy(() => import('./site/PracticeCenter'))
