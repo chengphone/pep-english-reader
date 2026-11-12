@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, BookOpen, ChevronDown, Filter, Play, Search, Sparkles, X } from 'lucide-react'
 import type { PictureCatalogEntry, PictureLevel } from '../pictureBooks'
 import { latestPictureProgress, pictureArt, pictureProgressPosition, readPictureProgress } from '../pictureBooks'
-import { arcForEpisode, groupPictureEntries } from '../pictureArcs'
+import { arcForEntry, groupPictureEntries } from '../pictureArcs'
 import { useLearningState } from '../reader/learningStore'
 import './SitePages.css'
 
@@ -46,7 +46,7 @@ export default function PictureLibrary({
     if (level !== 'all' && entry.level !== level) return false
     if (theme !== '全部' && !(entry.themes ?? []).includes(theme)) return false
     if (needle) {
-      const arc = arcForEpisode(entry.episode)
+      const arc = arcForEntry(entry)
       const haystack = `${entry.title} ${entry.series} ${entry.levelLabel} ${(entry.themes ?? []).join(' ')} 第${entry.episode ?? ''}集 ${arc?.volume ?? ''} ${arc?.title ?? ''} ${arc?.description ?? ''}`.toLowerCase()
       if (!haystack.includes(needle)) return false
     }
@@ -62,7 +62,7 @@ export default function PictureLibrary({
   useEffect(() => {
     if (initializedArcs.current || !entries.length) return
     initializedArcs.current = true
-    const preferred = (continueEntry && arcForEpisode(continueEntry.episode)?.id) || groupPictureEntries(entries)[0]?.arc.id
+    const preferred = (continueEntry && arcForEntry(continueEntry)?.id) || groupPictureEntries(entries)[0]?.arc.id
     if (preferred) setOpenArcs(new Set([preferred]))
   }, [entries, continueEntry])
 
@@ -127,7 +127,7 @@ export default function PictureLibrary({
     {ready && !entries.length && <div className="page-empty library-empty">
       <BookOpen size={26}/>
       <strong>本机还没有接入绘本资源</strong>
-      <span>把 Journey to the West 的 PDF、MP3 和生词 PDF 整理到仓库外，再用本地服务器打开即可。</span>
+      <span>把绘本的 PDF、MP3 和生词 PDF 整理到仓库外，再用本地服务器打开即可。</span>
       <code>npm run book:prepare-picture &amp;&amp; npm run book:serve</code>
       <button type="button" className="page-empty-action" onClick={onOpenTextbooks}>先去课本中心</button>
     </div>}

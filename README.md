@@ -19,7 +19,7 @@
 - **听写练习**：按教材 / 范围 / 单元选择，全部随机或自定义抽取，检查声音后开始，交卷后对答案。
 - **本地教材**：PDF / ZIP 导入与离线阅读代码保留，当前通过 `src/features.ts` 的 `LOCAL_BOOKS_ENABLED` 开关暂时关闭；已导入数据仍保留在本机。
 - **自建在线教材**：应用读取 `remote-books.json`，直接从远程 URL 加载页面图片、音频和课堂动漫，手机、平板、电脑均可点读，无需导入。`npm run book:serve` 可在局域网内提供构建后的应用和多本教材包；`npm run book:build-begin` 可把学生用书 PDF、课堂音频和动漫整理成教材包。教材清单用 `series` / `publisher` 提供系列信息，用 `tocGroups` 给长目录分组。详见 [docs/ONLINE_BOOK.md](docs/ONLINE_BOOK.md)。
-- **绘本馆**：读取 `/picture-data/picture-books.json`，按难度、主题和关键词筛选；原版跨页图、整集原声、逐句文字高亮和跟读录音都在绘本阅读器内完成。难度和主题按整套作品分级（Journey to the West 为封面标注的 Level 5，主题为神话 / 冒险），不按单集或篇章拆分。阅读器顶部可直接进入同一套绘本的下一集（最后一集禁用）。阅读器可以把本集清单、页面图和整集音频“保存到本机”，之后离线继续读。阅读进度、已读完跨页按学习档案保存在本机。绘本馆按 16 个篇章折叠浏览，篇章划分在 `src/pictureArcs.ts` 中维护，不改变单本清单和音频映射。绘本资源、插画和音频只放在仓库外。
+- **绘本馆**：读取 `/picture-data/picture-books.json`，按难度、主题和关键词筛选；原版跨页图、整集原声、逐句文字高亮和跟读录音都在绘本阅读器内完成。难度和主题按整套作品分级（Journey to the West 为 Level 5，主题神话 / 冒险；Dino Buddies 为 Level 1，主题动物 / 友情 / 冒险），不按单集或篇章拆分。阅读器顶部可直接进入同一套绘本的下一集（最后一集禁用）。阅读器可以把本集清单、页面图和整集音频“保存到本机”，之后离线继续读。阅读进度、已读完跨页按学习档案保存在本机。绘本馆按“系列 + 篇章”折叠浏览（Journey to the West 16 卷，Dino Buddies 44 集单列一篇），篇章划分在 `src/pictureArcs.ts` 中维护，不改变单本清单和音频映射。绘本资源、插画和音频只放在仓库外。
 - **绘本原声同步**：`npm run book:sync-picture` 用本机 whisper.cpp 转写整集音频，再与 PDF 文字层做逐词序列对齐，把通过覆盖率与顺序校验的句子时间戳写回仓库外的 `book.json`。有这些时间戳时，播放原声会自动高亮当前句，并可开启“跟随”自动翻到该句所在跨页；未对齐的句子仍只支持点击高亮。
 - **生词读音与定位**：本集生词列表的喇叭按钮使用浏览器/系统的英文 TTS 朗读单个单词，不发送单词或释义到服务器；没有可用语音包时会给出提示。点击词条会按词典原形匹配正文中的屈折形式和短语（folded his arms、steeper、untying），正文确实没有出现时给出提示。
 - **练习中心**：汇总课本跟读、课本听写、绘本词汇小测和已校对的故事理解题；词汇题来自随书生词表，理解题只使用人工校对过的题目。
@@ -45,6 +45,15 @@ npm run book:serve
 ```
 
 构建脚本会修复 PDF 文字层的常见问题：整句加字距导致每个字母被拆成独立词（`O n l y`）、Drop cap 首字母与后续字母分离、跨行连字符和跨页残句。修复只影响生成的句子文本和热区，不改动原版页面图片与音频。
+
+Dino Buddies 使用单独的 `tools/build-dino-picture-books.mjs`，处理三种 PDF 版式：单页横版、033 的压缩长条页，以及 040–044 的上下两页（下半页旋转 180°）。默认输出到 `~/Downloads/dino-buddies-reader`：
+
+```sh
+node tools/build-dino-picture-books.mjs
+node tools/sync-picture-audio.mjs --root ~/Downloads/dino-buddies-reader
+```
+
+两个系列的目录可以合并到同一个 `picture-books.json`，绘本馆会按 `series` 自动分成不同篇章。
 
 `book:sync-picture` 默认使用 `whisper-cli` 和 `~/.cache/whisper.cpp/ggml-base.en.bin`，把逐句时间戳写回仓库外的单本清单；重建绘本后需要再运行一次。可用 `--model`、`--jobs`、`--limit` 调整模型和并发：
 

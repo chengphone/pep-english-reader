@@ -7,7 +7,7 @@ import {
   pictureProgressPosition,
   questionsFor,
 } from '../src/pictureBooks.ts'
-import { PICTURE_ARCS, arcForEpisode, groupPictureEntries } from '../src/pictureArcs.ts'
+import { PICTURE_ARCS, arcForEntry, arcForEpisode, groupPictureEntries } from '../src/pictureArcs.ts'
 import { groupPictureSeries, nextPictureInSeries } from '../src/pictureSeries.ts'
 
 const manifest = {
@@ -54,14 +54,16 @@ test('comprehension questions are used verbatim; missing ones fall back to vocab
   assert.equal(hasComprehension({ ...manifest, comprehension: [] }), false)
 })
 
-test('story arcs cover every episode exactly once', () => {
-  assert.equal(PICTURE_ARCS.length, 16)
-  assert.deepEqual(PICTURE_ARCS.map(arc => [arc.from, arc.to]), [
+test('Journey to the West arcs cover every episode exactly once', () => {
+  assert.equal(PICTURE_ARCS.length, 17)
+  const jtwArcs = PICTURE_ARCS.filter(arc => arc.series === 'Journey to the West')
+  assert.equal(jtwArcs.length, 16)
+  assert.deepEqual(jtwArcs.map(arc => [arc.from, arc.to]), [
     [1, 7], [8, 13], [14, 21], [22, 26], [27, 31], [32, 36], [37, 43], [44, 48],
     [49, 52], [53, 58], [59, 63], [64, 67], [68, 75], [76, 84], [85, 98], [99, 108],
   ])
   for (let episode = 1; episode <= 108; episode++) {
-    const matches = PICTURE_ARCS.filter(arc => episode >= arc.from && episode <= arc.to)
+    const matches = jtwArcs.filter(arc => episode >= arc.from && episode <= arc.to)
     assert.equal(matches.length, 1, `episode ${episode} must belong to exactly one arc`)
     assert.equal(arcForEpisode(episode)?.id, matches[0].id)
   }
@@ -70,19 +72,48 @@ test('story arcs cover every episode exactly once', () => {
   assert.equal(arcForEpisode(undefined), undefined)
 })
 
+test('Dino Buddies has its own 44-episode arc and does not collide with JTW episodes', () => {
+  const dino = PICTURE_ARCS.find(arc => arc.id === 'dino-buddies')
+  assert.equal(dino?.series, 'Dino Buddies')
+  assert.deepEqual([dino?.from, dino?.to], [1, 44])
+  assert.equal(arcForEntry({ series: 'Dino Buddies', episode: 1 })?.id, 'dino-buddies')
+  assert.equal(arcForEntry({ series: 'Dino Buddies', episode: 44 })?.id, 'dino-buddies')
+  assert.equal(arcForEntry({ series: 'Dino Buddies', episode: 45 }), undefined)
+  assert.equal(arcForEntry({ series: 'Journey to the West', episode: 1 })?.id, 'monkey-king')
+  assert.equal(arcForEntry({ series: 'Other Series', episode: 1 }), undefined)
+  assert.equal(arcForEntry({ series: '', episode: 1 }), undefined)
+  assert.equal(arcForEntry({ series: 'Dino Buddies', episode: undefined }), undefined)
+})
+
 test('groupPictureEntries keeps catalog order and only returns filled arcs', () => {
+  const jtw = 'Journey to the West'
   const entries = [
-    { id: 'a', episode: 1 },
-    { id: 'b', episode: 7 },
-    { id: 'c', episode: 8 },
-    { id: 'd', episode: 108 },
-    { id: 'e', episode: undefined },
-    { id: 'f', episode: 200 },
+    { id: 'a', series: jtw, episode: 1 },
+    { id: 'b', series: jtw, episode: 7 },
+    { id: 'c', series: jtw, episode: 8 },
+    { id: 'd', series: jtw, episode: 108 },
+    { id: 'e', series: jtw, episode: undefined },
+    { id: 'f', series: jtw, episode: 200 },
   ]
   const groups = groupPictureEntries(entries)
   assert.deepEqual(groups.map(group => group.arc.id), ['monkey-king', 'heaven', 'ling-shan', 'other'])
   assert.deepEqual(groups.flatMap(group => group.entries.map(entry => entry.id)), ['a', 'b', 'c', 'd', 'e', 'f'])
   assert.deepEqual(groupPictureEntries([]), [])
+})
+
+test('groupPictureEntries separates series that share episode numbers', () => {
+  const entries = [
+    { id: 'j1', series: 'Journey to the West', episode: 1 },
+    { id: 'd1', series: 'Dino Buddies', episode: 1 },
+    { id: 'd44', series: 'Dino Buddies', episode: 44 },
+    { id: 'x1', series: 'Unknown Series', episode: 1 },
+  ]
+  const groups = groupPictureEntries(entries)
+  assert.deepEqual(groups.map(group => [group.arc.id, group.entries.map(entry => entry.id)]), [
+    ['monkey-king', ['j1']],
+    ['dino-buddies', ['d1', 'd44']],
+    ['other', ['x1']],
+  ])
 })
 
 test('picture art falls back to the portrait cover and progress stays inside 0–100%', () => {

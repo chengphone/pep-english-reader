@@ -2,8 +2,9 @@
 // 生成可直接上传到任意静态空间的目录：
 //   <out>/pep-english-reader/  ← dist
 //   <out>/book-data/<bookId>/  ← 教材清单、页面、音频和动漫
+//   <out>/picture-data/        ← 绘本目录、跨页图、整集音频和清单
 // 上传后打开 https://<域名>/pep-english-reader/ 即可使用。
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { cp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
@@ -33,6 +34,8 @@ function options(name) {
 const DIST = resolve(ROOT, option('dist', 'dist'))
 const BOOK_INPUTS = options('book').length ? options('book').map(value => resolve(value)) : defaultBookInputs()
 const OUT = resolve(option('out', join(homedir(), 'Downloads', 'pep-english-reader-site')))
+const PICTURE_DIR = resolve(option('picture', join(homedir(), 'Downloads', 'journey-to-the-west-reader')))
+const INCLUDE_PICTURE = !args.includes('--no-picture')
 
 if (!existsSync(join(DIST, 'index.html'))) {
   console.error(`找不到 ${join(DIST, 'index.html')}，请先运行 npm run build。`)
@@ -60,6 +63,53 @@ const appDir = join(OUT, 'pep-english-reader')
 await rm(OUT, { recursive: true, force: true })
 await mkdir(appDir, { recursive: true })
 await cp(DIST, appDir, { recursive: true })
+
+// 绘本目录、跨页图和音频同样留在仓库外；导出时只复制清单实际引用的文件，
+// 不把 whisper 缓存、词汇备份和 PDF/MP3 原始素材一起带出去。
+async function exportPictures() {
+  if (!INCLUDE_PICTURE) { console.log('已按 --no-picture 跳过绘本。'); return undefined }
+  const catalogPath = join(PICTURE_DIR, 'picture-books.json')
+  if (!existsSync(catalogPath)) { console.log(`未找到 ${catalogPath}，跳过绘本。`); return undefined }
+  let data
+  try { data = JSON.parse(readFileSync(catalogPath, 'utf8')) } catch { throw new Error(`绘本目录不是有效 JSON：${catalogPath}`) }
+  const rows = Array.isArray(data) ? data : Array.isArray(data?.books) ? data.books : []
+  if (!rows.length) throw new Error(`绘本目录为空：${catalogPath}`)
+  const files = new Set(['picture-books.json'])
+  const add = (base, value) => {
+    if (typeof value !== 'string' || !value.trim() || /^[a-z]+:/i.test(value.trim())) return
+    const clean = value.split('#')[0].trim().replace(/^\.\/+/, '').replace(/^\/+/, '')
+    if (clean) files.add(base ? join(base, clean) : clean)
+  }
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue
+    add('', row.cover)
+    add('', row.art)
+    if (typeof row.manifest !== 'string' || !row.manifest.trim()) continue
+    add('', row.manifest)
+    const manifestPath = safeJoin(PICTURE_DIR, row.manifest)
+    if (!manifestPath || !existsSync(manifestPath)) throw new Error(`绘本缺少清单：${row.id ?? row.manifest}`)
+    let manifest
+    try { manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) } catch { throw new Error(`绘本清单不是有效 JSON：${row.manifest}`) }
+    const base = dirname(row.manifest)
+    add(base, manifest.cover)
+    add(base, manifest.art)
+    add(base, manifest.audio)
+    for (const page of manifest.pages ?? []) add(base, page.image)
+  }
+  const targetRoot = join(OUT, 'picture-data')
+  let bytes = 0
+  for (const file of files) {
+    const from = safeJoin(PICTURE_DIR, file), to = safeJoin(targetRoot, file)
+    if (!from || !to || !existsSync(from)) throw new Error(`绘本缺少目录引用的文件：${file}`)
+    await mkdir(dirname(to), { recursive: true })
+    await cp(from, to)
+    bytes += statSync(from).size
+  }
+  console.log(`已整理绘本：${rows.length} 本 · ${files.size} 个文件 · ${(bytes / 1048576).toFixed(0)} MB`)
+  return { books: rows.length, files: files.size }
+}
+
+const pictureSummary = await exportPictures()
 
 const catalog = { books: [] }
 let totalFiles = 0
@@ -94,7 +144,7 @@ for (const source of sources) {
 await writeFile(join(appDir, 'remote-books.json'), JSON.stringify(catalog, null, 2) + '\n')
 
 console.log(`\n已生成可上传目录：${OUT}`)
-console.log(`包含 ${sources.length} 本教材、${totalFiles} 个教材文件。`)
+console.log(`包含 ${sources.length} 本教材、${totalFiles} 个教材文件${pictureSummary ? `，以及 ${pictureSummary.books} 本绘本、${pictureSummary.files} 个绘本文件` : ''}。`)
 console.log('\n把整个目录上传到任意静态空间后，打开：')
 console.log('  https://<域名>/pep-english-reader/')
-console.log('\n教材内容仅供个人使用，请勿上传到公开仓库或公开演示站点。')
+console.log('\n教材和绘本内容仅供个人使用；如上传到静态空间，必须配置登录/访问控制，不能公开分发。')
