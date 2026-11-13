@@ -325,7 +325,9 @@ export default function PictureReader({
     if (!active) return
     const target = active
     setSelectedId(previous => previous === target.id ? previous : target.id)
-    if (followAudio && mode === 'listen' && target.pageIndex !== pageIndex) setPageIndex(target.pageIndex)
+    // 跟随是用户显式开关，不再限制在“听故事”模式；整集音频播放时
+    // 其他模式同样需要翻到当前句所在跨页。
+    if (followAudio && target.pageIndex !== pageIndex) setPageIndex(target.pageIndex)
   }
 
   function handleTimeUpdate(event: SyntheticEvent<HTMLAudioElement>) {
@@ -591,7 +593,7 @@ export default function PictureReader({
             <span className="pbook-player-icon" aria-hidden="true"><Headphones size={17}/></span>
             <span className="pbook-player-title"><strong>整集原声</strong><small title={`第 ${book.manifest.episode} 集 · ${book.manifest.title}`}>第 {book.manifest.episode} 集 · {book.manifest.title}</small></span>
             <div className="pbook-player-actions">
-              {hasTimestamps && <button type="button" className="pbook-player-follow" aria-pressed={followAudio} title="播放时自动翻到当前句所在跨页" onClick={() => setFollowAudio(value => !value)}><BookOpen size={14}/><span>跟随</span></button>}
+              {hasTimestamps && <button type="button" className="pbook-player-follow" aria-pressed={followAudio} title={followAudio ? '关闭后页面不再跟随音频自动翻页' : '开启后页面跟随音频自动翻到当前句'} onClick={() => setFollowAudio(value => !value)}><BookOpen size={14}/><span>{followAudio ? '跟随中' : '跟随'}</span></button>}
               <button type="button" className="pbook-player-loop" aria-pressed={loop} title="循环整集" onClick={() => setLoop(value => !value)}><Repeat size={15}/><span>循环</span></button>
             </div>
           </div>
@@ -604,7 +606,7 @@ export default function PictureReader({
             <span className="pbook-player-time">{formatTime(duration || book.manifest.audioDuration || 0)}</span>
             <label className="pbook-player-speed"><span className="sr-only">播放速度</span><select value={speed} onChange={event => setSpeed(Number(event.target.value))} aria-label="播放速度"><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option></select></label>
           </div>
-          <p className="pbook-player-note"><Info size={13}/>{hasTimestamps ? '播放时会按已对齐的句子时间戳自动高亮；点击句子可单独回放该句；“跟随”控制是否自动翻到该句所在的跨页。' : '本集没有经过校对的逐句时间戳；句子高亮由点击控制，不伪造自动同步。'}</p>
+          <p className="pbook-player-note"><Info size={13}/>{hasTimestamps ? `播放时会按已对齐的句子时间戳自动高亮；点击句子可单独回放该句；${followAudio ? '页面会跟随当前句自动翻页。' : '“跟随”已关闭，页面不会自动翻页。'}` : '本集没有经过校对的逐句时间戳；句子高亮由点击控制，不伪造自动同步。'}</p>
           {audioError && <p className="pbook-player-error" role="alert">{audioError}</p>}
           <audio
             ref={audioRef}
