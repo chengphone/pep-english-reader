@@ -9,7 +9,12 @@ const revision = createHash('sha256').update(files.join('\n')).update(source).di
 // 首次使用时再由 fetch 处理器写入缓存，不拖慢弱网首屏。
 const pdfAssets = /^pdf[-.]|^pdf\.worker/
 const precache = files.filter(name => !pdfAssets.test(name))
-await writeFile(new URL('../dist/sw.js', import.meta.url), source
-  .replace("const CACHE = 'pep-reader-shell-v3-word-audio'", `const CACHE = 'pep-reader-shell-${revision}'`)
-  .replace('const PRECACHE = []', `const PRECACHE = ${JSON.stringify(precache.map(file => '/pep-english-reader/assets/' + file))}`))
+const cacheToken = "const CACHE = 'pep-reader-shell-v3-word-audio'"
+const precacheToken = 'const PRECACHE = []'
+if (!source.includes(cacheToken)) throw new Error(`sw.js 模板缺少缓存名标记：${cacheToken}`)
+let output = source.replace(cacheToken, `const CACHE = 'pep-reader-shell-${revision}'`)
+if (!output.includes(precacheToken)) throw new Error('sw.js 模板缺少 PRECACHE 占位符')
+output = output.replace(precacheToken, `const PRECACHE = ${JSON.stringify(precache.map(file => '/pep-english-reader/assets/' + file))}`)
+if (output.includes(precacheToken) || output.includes(cacheToken)) throw new Error('sw.js 模板替换未完全生效')
+await writeFile(new URL('../dist/sw.js', import.meta.url), output)
 console.log(`Service worker: precache ${precache.length} shell assets (${revision})`)

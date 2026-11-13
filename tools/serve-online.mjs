@@ -7,7 +7,7 @@ import { createServer } from 'node:http'
 import { homedir, networkInterfaces } from 'node:os'
 import { extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { bookCatalogEntry, defaultBookInputs, resolveBookSource, safeJoin } from './bookSource.mjs'
+import { bookCatalogEntry, defaultBookInputs, resolveBookSource, safeRealJoin } from './bookSource.mjs'
 import { slimPictureCatalogRows } from './pictureCatalog.mjs'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
@@ -33,6 +33,10 @@ function options(name) {
 const PORT = Number(option('port', process.env.PORT ?? 4173))
 const HOST = option('host', '0.0.0.0')
 const BASE = `/${String(option('base', '/pep-english-reader/')).replace(/^\/+|\/+$/g, '')}/`
+// 构建产物里的资源路径固定带 /pep-english-reader/，换前缀会 404。
+if (BASE !== '/pep-english-reader/') fail('构建产物固定使用 /pep-english-reader/ 作为基路径；请同时修改 vite base 并重新构建后再用 --base。')
+// 教材默认只在同源页面使用，不开放跨站读取；确需跨源调试时显式加 --cors。
+const ALLOW_CORS = args.includes('--cors')
 const DIST = resolve(ROOT, option('dist', 'dist'))
 const BOOK_INPUTS = options('book').length ? options('book').map(value => resolve(value)) : defaultBookInputs()
 // 绘本包由 tools/build-picture-books.mjs 生成，默认放在下载目录，不进入仓库。
@@ -92,7 +96,7 @@ function readPictureCatalog() {
   }
 }
 
-function sendFile(request, response, path, { isBook = false, cors = true } = {}) {
+function sendFile(request, response, path, { isBook = false, cors = ALLOW_CORS } = {}) {
   let info
   try {
     info = statSync(path)
@@ -153,13 +157,13 @@ function sendFile(request, response, path, { isBook = false, cors = true } = {})
   stream.pipe(response)
 }
 
-const CORS = {
+const CORS = ALLOW_CORS ? {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
   'Access-Control-Allow-Headers': 'Range, If-None-Match, If-Modified-Since',
   'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges, ETag',
   'Cross-Origin-Resource-Policy': 'cross-origin',
-}
+} : {}
 
 if (!existsSync(join(DIST, 'index.html'))) fail(`找不到 ${join(DIST, 'index.html')}，请先运行 npm run build。`)
 const { books, catalog } = await prepareBooks()
@@ -171,7 +175,7 @@ else console.log(`绘本：未找到 ${join(PICTURE_DIR, 'picture-books.json')}�
 
 const server = createServer((request, response) => {
   if (request.method === 'OPTIONS') {
-    response.writeHead(204, CORS)
+    response.writeHead(ALLOW_CORS ? 204 : 405, ALLOW_CORS ? CORS : { Allow: 'GET, HEAD' })
     response.end()
     return
   }
@@ -206,7 +210,7 @@ const server = createServer((request, response) => {
         response.end(request.method === 'HEAD' ? undefined : body)
         return
       }
-      const target = safeJoin(PICTURE_DIR, relative)
+      const target = safeRealJoin(PICTURE_DIR, relative)
       if (!target) { response.writeHead(404); response.end('Not found'); return }
       sendFile(request, response, target, { isBook: true })
       return
@@ -215,7 +219,7 @@ const server = createServer((request, response) => {
       const book = books.find(item => rawPathname.startsWith(item.mount + '/'))
       if (!book) { response.writeHead(404); response.end('Not found'); return }
       const relative = decodeURIComponent(rawPathname.slice(book.mount.length + 1))
-      const target = safeJoin(book.root, relative)
+      const target = safeRealJoin(book.root, relative)
       if (!target) { response.writeHead(404); response.end('Not found'); return }
       sendFile(request, response, target, { isBook: true })
       return
@@ -228,7 +232,7 @@ const server = createServer((request, response) => {
         response.end(request.method === 'HEAD' ? undefined : body)
         return
       }
-      const target = safeJoin(DIST, relative)
+      const target = safeRealJoin(DIST, relative)
       if (!target) { response.writeHead(404); response.end('Not found'); return }
       sendFile(request, response, target, { cors: false })
       return

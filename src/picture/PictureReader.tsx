@@ -33,6 +33,7 @@ export default function PictureReader({
   onNextEpisode,
   onBack,
   onQuiz,
+  onPositionChange,
 }: {
   entry: PictureCatalogEntry
   initialPage: number
@@ -41,6 +42,7 @@ export default function PictureReader({
   onNextEpisode?: () => void
   onBack: () => void
   onQuiz: (mode: 'comprehension' | 'vocabulary') => void
+  onPositionChange?: (page: number, mode: PictureMode) => void
 }) {
   const learning = useLearningState()
   const profile = learning.active
@@ -81,6 +83,9 @@ export default function PictureReader({
   const recordStart = useRef(0)
   const wordTimerRef = useRef<number | null>(null)
   const wordRequestRef = useRef(0)
+  const mountedRef = useRef(true)
+  const recordStartingRef = useRef(false)
+  const recordRequestRef = useRef(0)
 
   useEffect(() => {
     let live = true
@@ -137,6 +142,8 @@ export default function PictureReader({
   useEffect(() => {
     if (!book) return
     writePictureProgress(book.id, profile, { pageIndex, mode })
+    // 把当前位置写回地址栏，刷新或分享链接时能回到同一跨页和模式。
+    onPositionChange?.(pageIndex, mode)
   }, [book?.id, pageIndex, mode, profile])
 
   useEffect(() => {
@@ -220,24 +227,45 @@ export default function PictureReader({
     return () => { live = false; if (url) URL.revokeObjectURL(url) }
   }, [book?.id, selected?.id, mode, profile, recordingVersion])
 
-  useEffect(() => () => {
-    if (mediaRef.current?.state === 'recording') mediaRef.current.stop()
-    streamRef.current?.getTracks().forEach(track => track.stop())
-    if (wordTimerRef.current) window.clearTimeout(wordTimerRef.current)
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      recordRequestRef.current++
+      recordStartingRef.current = false
+      if (mediaRef.current?.state === 'recording') mediaRef.current.stop()
+      streamRef.current?.getTracks().forEach(track => track.stop())
+      cancelWordSpeech()
+    }
   }, [])
+
+  function cancelWordSpeech() {
+    wordRequestRef.current++
+    if (wordTimerRef.current) {
+      window.clearTimeout(wordTimerRef.current)
+      wordTimerRef.current = null
+    }
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+  }
+
+  function cancelPendingRecording() {
+    recordRequestRef.current++
+    recordStartingRef.current = false
+  }
 
   function changeMode(next: PictureMode) {
     setMode(next)
     sentenceStopRef.current = null
     pendingSentenceRef.current = null
+    cancelPendingRecording()
     if (next !== 'listen') audioRef.current?.pause()
-    if (next !== 'practice') stopRecording(true)
+    if (next !== 'practice') stopRecording()
   }
 
   function goPage(next: number) {
     if (!book) return
-    stopRecording(true)
+    cancelPendingRecording()
+    stopRecording()
     if (audioRef.current && !audioRef.current.paused) setFollowAudio(false)
     setPageIndex(clamp(next, 0, lastPage))
     setRecordError('')
@@ -250,6 +278,11 @@ export default function PictureReader({
     pendingSentenceRef.current = null
     if (audio.paused) {
       setAudioError('')
+      // 整集播完后直接点播放时，从开头重新播放，而不是停在结尾。
+      if (audio.ended || (Number.isFinite(audio.duration) && audio.duration > 0 && audio.currentTime >= audio.duration - 0.05)) {
+        try { audio.currentTime = 0 } catch { /* 忽略 */ }
+        setCurrentTime(0)
+      }
       void audio.play().catch(() => setAudioError('整集音频无法播放，请检查本地服务器或音频文件。'))
     } else audio.pause()
   }
@@ -258,9 +291,10 @@ export default function PictureReader({
   // 原声里定位到该句并只播这一段，播完自动暂停；没有时间戳时只选中。
   function selectSentence(sentence: PictureSentence) {
     setSelectedId(sentence.id)
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+    cancelWordSpeech()
     setSpeakingWord('')
-    if (recordingState === 'recording') stopRecording(true)
+    cancelPendingRecording()
+    if (recordingState === 'recording') stopRecording()
     recordingAudioRef.current?.pause()
     const audio = audioRef.current
     if (!audio) return
@@ -320,7 +354,7 @@ export default function PictureReader({
   }
 
   async function startRecording() {
-    if (!book || !selected || recordingState !== 'idle') return
+    if (!book || !selected || recordingState !== 'idle' || recordStartingRef.current) return
     setRecordError('')
     if (!window.isSecureContext) {
       setRecordError('当前页面不是安全上下文，浏览器不允许录音。请使用 localhost 或 HTTPS。')
@@ -330,8 +364,15 @@ export default function PictureReader({
       setRecordError('当前浏览器不支持录音。你仍然可以听原音和阅读。')
       return
     }
+    recordStartingRef.current = true
+    const requestId = ++recordRequestRef.current
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // 权限弹窗可能停留很久；期间翻页、切换模式或离开页面时不要再开始录音。
+      if (!mountedRef.current || requestId !== recordRequestRef.current) {
+        stream.getTracks().forEach(track => track.stop())
+        return
+      }
       streamRef.current = stream
       const preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(type => MediaRecorder.isTypeSupported(type))
       const recorder = preferred ? new MediaRecorder(stream, { mimeType: preferred }) : new MediaRecorder(stream)
@@ -369,13 +410,15 @@ export default function PictureReader({
       streamRef.current = null
       setRecordingState('idle')
       setRecordError('无法使用麦克风。请检查浏览器权限；拒绝授权时不会上传任何声音。')
+    } finally {
+      if (requestId === recordRequestRef.current) recordStartingRef.current = false
     }
   }
 
-  function stopRecording(silent = false) {
+  function stopRecording() {
     if (mediaRef.current?.state === 'recording') {
       mediaRef.current.stop()
-      if (!silent) setRecordingState('saving')
+      setRecordingState('saving')
     }
   }
 
@@ -404,8 +447,9 @@ export default function PictureReader({
 
   function focusWord(word: string) {
     if (!book) return
-    stopRecording(true)
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+    cancelPendingRecording()
+    stopRecording()
+    cancelWordSpeech()
     setSpeakingWord('')
     setWordLocateNote('')
     // 生词是词典原形，正文可能是 folded / steeper / untying 等形式，
@@ -426,9 +470,9 @@ export default function PictureReader({
       return
     }
     audioRef.current?.pause()
-    stopRecording(true)
-    window.speechSynthesis.cancel()
-    if (wordTimerRef.current) window.clearTimeout(wordTimerRef.current)
+    cancelPendingRecording()
+    stopRecording()
+    cancelWordSpeech()
     const requestId = ++wordRequestRef.current
     const utterance = new SpeechSynthesisUtterance(word)
     utterance.lang = 'en-US'

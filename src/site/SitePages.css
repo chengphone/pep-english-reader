@@ -235,6 +235,8 @@ button.textbook-card:hover { transform: translateY(-2px); border-color: #B8CFC0;
 .library-toolbar { margin-top: 0; }
 .library-filters { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .library-classification-note { margin-top: 8px; color: #8A9A90; font-size: 10px; line-height: 1.5; }
+.library-catalog-note { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px 14px; border: 1px solid #DAE7DF; border-radius: 12px; background: #F7FAF8; color: #657A70; font-size: 11.5px; line-height: 1.5; }
+.library-catalog-note button { margin-left: auto; flex: none; min-height: 32px; padding: 0 13px; border: 1px solid #CFE0D4; border-radius: 999px; background: #fff; color: #0F6049; font: inherit; font-weight: 600; }
 .library-filter-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .library-filter-group > span { min-width: 34px; color: #70847A; font-size: 10px; font-weight: 600; }
 .library-filter-group button {

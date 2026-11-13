@@ -328,3 +328,5 @@
 .route-error-card p { margin-bottom: 18px; color: var(--muted); }
 .route-error-action { border: 0; border-radius: 999px; padding: 10px 20px; background: var(--green); color: #fff; font-weight: 600; }
 .route-error-action:hover { background: var(--green-deep); }
+.route-error-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.route-error-secondary { border: 1px solid var(--line); border-radius: 999px; padding: 10px 20px; background: var(--surface); color: var(--ink); font-weight: 600; }

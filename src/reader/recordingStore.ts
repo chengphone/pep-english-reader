@@ -55,7 +55,31 @@ function readMeta(): RecordingMeta[] {
   try {
     const value = JSON.parse(localStorage.getItem(META_KEY) ?? '[]')
     if (!Array.isArray(value)) return []
-    return value.filter(row => row && typeof row.id === 'string' && typeof row.bookId === 'string')
+    // 元数据可能来自旧版本或被手工改写；逐条规范化，坏记录不能让面板崩溃。
+    return value.flatMap((row): RecordingMeta[] => {
+      if (!row || typeof row !== 'object') return []
+      const record = row as Record<string, unknown>
+      if (typeof record.id !== 'string' || !record.id) return []
+      if (record.profile !== 'a' && record.profile !== 'b') return []
+      if (typeof record.bookId !== 'string' || !record.bookId) return []
+      if (typeof record.itemId !== 'string' || !record.itemId) return []
+      if (typeof record.text !== 'string') return []
+      if (typeof record.mime !== 'string' || !record.mime) return []
+      const duration = Number(record.duration)
+      const createdAt = Number(record.createdAt)
+      const score = Number(record.score)
+      return [{
+        id: record.id,
+        profile: record.profile,
+        bookId: record.bookId,
+        itemId: record.itemId,
+        text: record.text,
+        duration: Number.isFinite(duration) ? Math.max(0, duration) : 0,
+        score: Number.isFinite(score) ? score : undefined,
+        mime: record.mime,
+        createdAt: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : 0,
+      }]
+    })
   } catch {
     return []
   }

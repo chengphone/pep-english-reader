@@ -41,6 +41,7 @@ function formatClock(seconds: number) {
 }
 
 function formatDate(stamp: number) {
+  if (!Number.isFinite(stamp) || stamp <= 0) return '时间未知'
   const date = new Date(stamp)
   return `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
@@ -55,7 +56,7 @@ function pickMime() {
 // 语音评分默认关闭，开启后由浏览器语音服务返回识别文本。
 export default function RecordingPanel({ profile, bookId, items, selected, onPlay, onBeforeRecord, onSaved }: Props) {
   const target = items.find(item => item.id === selected?.id) ?? items[0]
-  const [status, setStatus] = useState<'idle' | 'recording' | 'saving'>('idle')
+  const [status, setStatus] = useState<'idle' | 'starting' | 'recording' | 'saving'>('idle')
   const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState('')
   const [meta, setMeta] = useState<RecordingMeta | undefined>(() => target ? latestRecording(profile, bookId, target.id) : undefined)
@@ -75,8 +76,13 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
   const audio = useRef<HTMLAudioElement | null>(null)
   const audioUrl = useRef('')
   const mounted = useRef(true)
-  const targetRef = useRef(target)
-  targetRef.current = target
+  // 录音开始后锁定目标词和资料归属，翻页或点选其他词时停止本次录音，
+  // 不能把旧录音保存到新词名下。
+  const take = useRef<{ item: ReaderItem; profile: ProfileId; bookId: string; key: string } | null>(null)
+  const startRequest = useRef(0)
+  const takeKey = target ? `${profile}:${bookId}:${target.id}` : ''
+  const takeKeyRef = useRef(takeKey)
+  takeKeyRef.current = takeKey
 
   const supported = typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
   const speechSupported = Boolean(speechConstructor())
@@ -85,6 +91,7 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
     mounted.current = true
     return () => {
       mounted.current = false
+      startRequest.current++
       window.clearInterval(timer.current)
       stream.current?.getTracks().forEach(track => track.stop())
       if (recorder.current && recorder.current.state !== 'inactive') recorder.current.stop()
@@ -93,6 +100,15 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
       if (audioUrl.current) URL.revokeObjectURL(audioUrl.current)
     }
   }, [])
+
+  // 目标词、教材或用户切换时，先结束正在进行的录音（归到开始时的目标名下），
+  // 并让仍在等待麦克风权限的启动请求失效。
+  useEffect(() => {
+    startRequest.current++
+    if (status === 'recording') stop()
+    // 麦克风权限弹窗还没返回时换了目标词：这次请求已经作废，恢复成可再次点击。
+    else if (status === 'starting') setStatus('idle')
+  }, [takeKey])
 
   useEffect(() => {
     if (!target) {
@@ -154,15 +170,21 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
       setError('当前浏览器不能录音。手机请使用 HTTPS 打开，并允许麦克风权限。')
       return
     }
+    const item = target
+    const key = takeKey
+    take.current = { item, profile, bookId, key }
+    const requestId = ++startRequest.current
     onBeforeRecord()
     stopAudio()
     setError('')
     setTranscript('')
-    setMeta(latestRecording(profile, bookId, target.id))
+    setStatus('starting')
+    setMeta(latestRecording(profile, bookId, item.id))
     try {
       const media = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
-      if (!mounted.current) {
+      if (!mounted.current || requestId !== startRequest.current || takeKeyRef.current !== key) {
         media.getTracks().forEach(track => track.stop())
+        take.current = null
         return
       }
       stream.current = media
@@ -181,6 +203,9 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
     } catch (reason) {
       stream.current?.getTracks().forEach(track => track.stop())
       stream.current = null
+      take.current = null
+      if (!mounted.current || requestId !== startRequest.current) return
+      setStatus('idle')
       setError(reason instanceof DOMException && reason.name === 'NotAllowedError'
         ? '麦克风权限被拒绝，请在浏览器设置中允许后重试。'
         : '无法打开麦克风，请检查设备或换一个浏览器。')
@@ -188,7 +213,8 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
   }
 
   async function finishRecording(mime: string) {
-    const item = targetRef.current
+    const current = take.current
+    const item = current?.item
     const duration = (Date.now() - startedAt.current) / 1000
     window.clearInterval(timer.current)
     stream.current?.getTracks().forEach(track => track.stop())
@@ -207,7 +233,8 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
     }
     const blob = new Blob(chunks.current, { type: mime })
     chunks.current = []
-    if (!item || !blob.size) {
+    if (!current || !item || !blob.size) {
+      take.current = null
       if (mounted.current) {
         setStatus('idle')
         setError('这次没有录到声音，请再试一次。')
@@ -216,14 +243,19 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
     }
     const score = heard ? pronunciationScore(item.text, heard).score : undefined
     try {
-      const saved = await saveRecording({ profile, bookId, itemId: item.id, text: item.text, duration, score, mime, blob })
+      const saved = await saveRecording({ profile: current.profile, bookId: current.bookId, itemId: item.id, text: item.text, duration, score, mime, blob })
+      const stillCurrent = mounted.current && take.current === current && takeKeyRef.current === current.key
+      take.current = null
       if (!mounted.current) return
-      setMeta(saved)
-      setCount(listRecordings(profile, bookId, item.id).length)
+      if (stillCurrent) {
+        setMeta(saved)
+        setCount(listRecordings(current.profile, current.bookId, item.id).length)
+        setElapsed(duration)
+      }
       setStatus('idle')
-      setElapsed(duration)
       onSaved(item, score)
     } catch {
+      take.current = null
       if (!mounted.current) return
       setStatus('idle')
       setError('录音保存失败，请检查浏览器存储空间。')
@@ -295,12 +327,12 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
       {items.map(item => <button key={item.id} className={target?.id === item.id ? 'is-active' : ''} onClick={() => onPlay(item)}>{item.text}</button>)}
     </div>
     <div className={`recording-stage${status === 'recording' ? ' is-recording' : ''}`}>
-      <button className="recording-button" aria-label={status === 'recording' ? '停止录音' : '开始录音'} disabled={status === 'saving'} onClick={() => status === 'recording' ? stop() : void start()}>
+      <button className="recording-button" aria-label={status === 'recording' ? '停止录音' : status === 'starting' ? '正在请求麦克风权限' : '开始录音'} disabled={status === 'saving' || status === 'starting'} onClick={() => status === 'recording' ? stop() : void start()}>
         {status === 'recording' ? <Square size={25}/> : <Mic size={25}/>}
       </button>
       <div className="recording-stage-copy">
-        <strong>{status === 'recording' ? '正在录音…' : status === 'saving' ? '正在保存…' : '点一下，读一遍'}</strong>
-        <span>{status === 'recording' ? formatClock(elapsed) : meta ? `最近录音 ${formatDate(meta.createdAt)}` : '录音只保存在本机浏览器'}</span>
+        <strong>{status === 'recording' ? '正在录音…' : status === 'saving' ? '正在保存…' : status === 'starting' ? '正在请求麦克风…' : '点一下，读一遍'}</strong>
+        <span>{status === 'recording' ? formatClock(elapsed) : meta ? `最近录音 ${formatDate(meta.createdAt)}` : status === 'starting' ? '请在浏览器弹窗中允许麦克风' : '录音只保存在本机浏览器'}</span>
       </div>
       {status === 'recording' && <span className="recording-live-dot" aria-hidden="true"/>}
     </div>
@@ -309,7 +341,7 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
     {meta && <div className="recording-result">
       <div className="recording-result-head">
         <span>最近一次</span>
-        <small>{formatDate(meta.createdAt)} · {meta.duration.toFixed(1)} 秒</small>
+        <small>{formatDate(meta.createdAt)} · {Number.isFinite(meta.duration) ? Math.max(0, meta.duration).toFixed(1) : '0.0'} 秒</small>
       </div>
       {typeof meta.score === 'number' ? <div className={`recording-score${meta.score >= 75 ? ' is-good' : ''}`}>
         <strong>{meta.score}</strong><span>分 · {scoreMessage(meta.score)}</span>

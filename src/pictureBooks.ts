@@ -90,12 +90,31 @@ export function pictureCatalogUrl(): URL {
   return requested ? new URL(requested, location.href) : new URL('picture-books.json', PICTURE_ROOT)
 }
 
-function normalizeCatalog(value: unknown, base: URL): PictureCatalogEntry[] {
-  const rows = Array.isArray(value) ? value : isObject(value) && Array.isArray(value.books) ? value.books : []
+// 只接受 http(s) 地址；单条数据里的坏 URL 不能拖垮整个目录。
+function safeUrl(value: unknown, base: URL): string | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined
+  try {
+    const url = new URL(value, base)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function catalogRows(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value
+  if (isObject(value) && Array.isArray(value.books)) return value.books
+  throw new Error('绘本目录格式无效。')
+}
+
+export function normalizePictureCatalog(value: unknown, base: URL): PictureCatalogEntry[] {
+  const rows = catalogRows(value)
   const entries: PictureCatalogEntry[] = []
   const seen = new Set<string>()
   for (const row of rows) {
-    if (!isObject(row) || !cleanText(row.id) || !cleanText(row.manifest) || seen.has(String(row.id))) continue
+    if (!isObject(row) || !cleanText(row.id) || seen.has(String(row.id))) continue
+    const manifest = safeUrl(row.manifest, base)
+    if (!manifest) continue
     const id = String(row.id)
     seen.add(id)
     const themes = Array.isArray(row.themes) ? row.themes.map(cleanText).filter(Boolean) : []
@@ -107,9 +126,9 @@ function normalizeCatalog(value: unknown, base: URL): PictureCatalogEntry[] {
       level: normalizeLevel(row.level),
       levelLabel: cleanText(row.levelLabel) || '启蒙',
       themes,
-      cover: new URL(String(row.cover || 'cover.jpg'), base).href,
-      art: cleanText(row.art) ? new URL(String(row.art), base).href : undefined,
-      manifest: new URL(String(row.manifest), base).href,
+      cover: safeUrl(row.cover, base) ?? new URL('cover.jpg', base).href,
+      art: safeUrl(row.art, base),
+      manifest,
       pages: Number.isFinite(Number(row.pages)) ? Math.max(0, Math.trunc(Number(row.pages))) : undefined,
       // 新目录只带生词数量；旧缓存或自定义目录仍是完整数组，两种都接受。
       vocabulary: Array.isArray(row.vocabulary) ? row.vocabulary.length : Number.isFinite(Number(row.vocabulary)) ? Math.max(0, Math.trunc(Number(row.vocabulary))) : undefined,
@@ -122,29 +141,92 @@ function normalizeCatalog(value: unknown, base: URL): PictureCatalogEntry[] {
   return entries
 }
 
-export async function loadPictureCatalog(): Promise<PictureCatalogEntry[]> {
-  const url = pictureCatalogUrl()
-  const explicit = new URL(location.href).searchParams.has('picture-catalog')
+const CATALOG_CACHE_KEY = 'pep:picture-catalog:v1'
+
+export type PictureCatalogLoad = {
+  entries: PictureCatalogEntry[]
+  error?: string
+  cached?: boolean
+}
+
+function readCachedCatalog(url: URL): unknown {
   try {
-    return await fetchWithTimeout(url, { cache: 'no-cache' }, async response => {
-      if (response.status === 404) return []
-      if (!response.ok) throw new Error(`绘本目录加载失败（HTTP ${response.status}）。`)
-      let data: unknown
-      try { data = await response.json() } catch { throw new Error('绘本目录格式无效。') }
-      return normalizeCatalog(data, url)
-    })
-  } catch (error) {
-    if (explicit) throw error
-    console.warn('Picture book catalog unavailable', error)
-    return []
+    const value = JSON.parse(localStorage.getItem(CATALOG_CACHE_KEY) ?? 'null')
+    if (!isObject(value) || !('data' in value)) return undefined
+    // 缓存来自另一个目录地址（例如自定义 ?picture-catalog）时不要复用，
+    // 否则相对 manifest 路径会按错误的位置解析。
+    if (typeof value.url === 'string' && value.url !== url.href) return undefined
+    return value.data
+  } catch {
+    return undefined
   }
 }
 
-function normalizeManifest(value: unknown, base: URL): PictureBookManifest | undefined {
+function writeCachedCatalog(data: unknown, url: URL) {
+  try {
+    localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), url: url.href, data }))
+  } catch {
+    // 隐私模式或配额不足时仍可正常联网使用。
+  }
+}
+
+async function fetchPictureCatalogData(url: URL): Promise<unknown> {
+  return fetchWithTimeout(url, { cache: 'no-cache' }, async response => {
+    if (response.status === 404) return null
+    if (!response.ok) throw new Error(`绘本目录加载失败（HTTP ${response.status}）。`)
+    try {
+      return await response.json()
+    } catch {
+      throw new Error('绘本目录格式无效。')
+    }
+  })
+}
+
+// 失败时区分“没有目录”（404 或合法的空目录）和“目录加载失败”。
+// 网络失败会优先使用上次成功读取的目录，避免绘本馆突然变成空馆。
+export async function loadPictureCatalogDetailed(): Promise<PictureCatalogLoad> {
+  const url = pictureCatalogUrl()
+  const explicit = new URL(location.href).searchParams.has('picture-catalog')
+  try {
+    const data = await fetchPictureCatalogData(url)
+    if (data === null) return { entries: [] }
+    const entries = normalizePictureCatalog(data, url)
+    const rowCount = Array.isArray(data) ? data.length : isObject(data) && Array.isArray(data.books) ? data.books.length : 0
+    // 有名录但每一条都缺 id / manifest 时，是坏数据而不是空馆。
+    if (rowCount > 0 && !entries.length) throw new Error('绘本目录格式无效。')
+    if (entries.length) writeCachedCatalog(data, url)
+    return { entries }
+  } catch (error) {
+    if (explicit) throw error
+    const message = error instanceof Error ? error.message : '绘本目录加载失败，请检查网络后重试。'
+    const cached = readCachedCatalog(url)
+    if (cached !== undefined) {
+      try {
+        const entries = normalizePictureCatalog(cached, url)
+        if (entries.length) {
+          console.warn('Picture book catalog unavailable; using cached copy', error)
+          return { entries, cached: true }
+        }
+      } catch {
+        // 缓存损坏时按无缓存处理。
+      }
+    }
+    console.warn('Picture book catalog unavailable', error)
+    return { entries: [], error: message }
+  }
+}
+
+export async function loadPictureCatalog(): Promise<PictureCatalogEntry[]> {
+  return (await loadPictureCatalogDetailed()).entries
+}
+
+export function normalizePictureManifest(value: unknown, base: URL): PictureBookManifest | undefined {
   if (!isObject(value) || !Array.isArray(value.pages) || !value.pages.length) return undefined
   const pages: PicturePage[] = []
   for (const [index, row] of value.pages.entries()) {
-    if (!isObject(row) || typeof row.image !== 'string' || !row.image.trim()) continue
+    if (!isObject(row)) continue
+    const image = safeUrl(row.image, base)
+    if (!image) continue
     const sentences: PictureSentence[] = []
     for (const sentence of Array.isArray(row.sentences) ? row.sentences : []) {
       if (!isObject(sentence) || typeof sentence.text !== 'string' || !sentence.text.trim()) continue
@@ -163,7 +245,7 @@ function normalizeManifest(value: unknown, base: URL): PictureBookManifest | und
     pages.push({
       pageIndex: Number.isFinite(Number(row.pageIndex)) ? Number(row.pageIndex) : index,
       displayPage: cleanText(row.displayPage) || String(index + 1),
-      image: new URL(row.image, base).href,
+      image,
       sentences,
     })
   }
@@ -172,16 +254,18 @@ function normalizeManifest(value: unknown, base: URL): PictureBookManifest | und
     .filter(isObject)
     .map(row => ({ word: cleanText(row.word), definition: cleanText(row.definition), example: cleanText(row.example) || undefined }))
     .filter(row => row.word && row.definition)
-  const comprehension = (Array.isArray(value.comprehension) ? value.comprehension : [])
-    .filter(isObject)
-    .map<PictureQuestion>((row, index) => ({
-      id: cleanText(row.id) || `q${index + 1}`,
-      prompt: cleanText(row.prompt),
-      options: Array.isArray(row.options) ? row.options.map(cleanText).filter(Boolean) : [],
-      answer: Number.isInteger(row.answer) ? row.answer : 0,
-      explanation: cleanText(row.explanation) || undefined,
-    }))
-    .filter(row => row.prompt && row.options.length >= 2 && row.answer >= 0 && row.answer < row.options.length)
+  const comprehension: PictureQuestion[] = []
+  const seenQuestions = new Set<string>()
+  for (const [index, row] of (Array.isArray(value.comprehension) ? value.comprehension : []).entries()) {
+    if (!isObject(row)) continue
+    const prompt = cleanText(row.prompt)
+    const options = Array.isArray(row.options) ? row.options.map(cleanText).filter(Boolean) : []
+    const answer = Number.isInteger(row.answer) ? row.answer : 0
+    const id = cleanText(row.id) || `q${index + 1}`
+    if (!prompt || options.length < 2 || answer < 0 || answer >= options.length || seenQuestions.has(id)) continue
+    seenQuestions.add(id)
+    comprehension.push({ id, prompt, options, answer, explanation: cleanText(row.explanation) || undefined })
+  }
   return {
     schemaVersion: Number(value.schemaVersion) || 1,
     bookId: cleanText(value.bookId),
@@ -191,10 +275,10 @@ function normalizeManifest(value: unknown, base: URL): PictureBookManifest | und
     level: normalizeLevel(value.level),
     levelLabel: cleanText(value.levelLabel) || '启蒙',
     themes: Array.isArray(value.themes) ? value.themes.map(cleanText).filter(Boolean) : [],
-    audio: new URL(cleanText(value.audio) || 'audio/episode.mp3', base).href,
+    audio: safeUrl(value.audio, base) ?? new URL('audio/episode.mp3', base).href,
     audioDuration: Number.isFinite(Number(value.audioDuration)) ? Number(value.audioDuration) : undefined,
-    cover: new URL(cleanText(value.cover) || 'cover.jpg', base).href,
-    art: cleanText(value.art) ? new URL(String(value.art), base).href : undefined,
+    cover: safeUrl(value.cover, base) ?? new URL('cover.jpg', base).href,
+    art: safeUrl(value.art, base),
     wordCount: Number.isFinite(Number(value.wordCount)) ? Number(value.wordCount) : undefined,
     audioSync: isObject(value.audioSync) ? {
       source: cleanText(value.audioSync.source) || undefined,
@@ -214,7 +298,7 @@ export async function loadPictureBook(entry: PictureCatalogEntry): Promise<Pictu
     if (!response.ok) throw new Error(`绘本清单无法加载（HTTP ${response.status}）。`)
     let data: unknown
     try { data = await response.json() } catch { throw new Error('绘本清单格式无效。') }
-    const normalized = normalizeManifest(data, manifestUrl)
+    const normalized = normalizePictureManifest(data, manifestUrl)
     if (!normalized) throw new Error('绘本清单缺少页面，无法打开。')
     return normalized
   })
@@ -235,15 +319,20 @@ function writeStore(store: ProgressStore) {
   try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(store)) } catch { /* 隐私模式下只保留本次阅读状态 */ }
 }
 
-export function readPictureProgress(bookId: string, profile: ProfileId): PictureProgress | undefined {
-  const value = readStore()[profile]?.[bookId]
-  if (!value || !Number.isFinite(value.pageIndex)) return undefined
+function normalizeProgress(value: unknown): PictureProgress | undefined {
+  if (!isObject(value) || !Number.isFinite(value.pageIndex)) return undefined
   return {
     pageIndex: Math.max(0, Math.trunc(value.pageIndex)),
     mode: MODES.includes(value.mode) ? value.mode : 'listen',
     updatedAt: Number.isFinite(value.updatedAt) ? value.updatedAt : 0,
-    completedPages: Array.isArray(value.completedPages) ? value.completedPages.filter(Number.isInteger) : [],
+    completedPages: Array.isArray(value.completedPages)
+      ? value.completedPages.filter((page): page is number => Number.isInteger(page) && page >= 0)
+      : [],
   }
+}
+
+export function readPictureProgress(bookId: string, profile: ProfileId): PictureProgress | undefined {
+  return normalizeProgress(readStore()[profile]?.[bookId])
 }
 
 export function writePictureProgress(bookId: string, profile: ProfileId, patch: Partial<PictureProgress>) {
@@ -253,7 +342,8 @@ export function writePictureProgress(bookId: string, profile: ProfileId, patch: 
     pageIndex: Math.max(0, Math.trunc(patch.pageIndex ?? previous?.pageIndex ?? 0)),
     mode: patch.mode && MODES.includes(patch.mode) ? patch.mode : previous?.mode ?? 'listen',
     updatedAt: Date.now(),
-    completedPages: patch.completedPages ?? previous?.completedPages ?? [],
+    completedPages: (patch.completedPages ?? previous?.completedPages ?? [])
+      .filter((page): page is number => Number.isInteger(page) && page >= 0),
   }
   store[profile] = { ...(store[profile] ?? {}), [bookId]: next }
   writeStore(store)
@@ -267,14 +357,17 @@ export function markPicturePageComplete(bookId: string, profile: ProfileId, page
 }
 
 export function latestPictureProgress(profile: ProfileId): { bookId: string; progress: PictureProgress } | undefined {
-  const rows = Object.entries(readStore()[profile] ?? {})
-    .filter(([, progress]) => progress && Number.isFinite(progress.updatedAt))
-    .sort((left, right) => (right[1].updatedAt ?? 0) - (left[1].updatedAt ?? 0))
-  return rows[0] ? { bookId: rows[0][0], progress: rows[0][1] } : undefined
+  const rows: { bookId: string; progress: PictureProgress }[] = []
+  for (const [bookId, value] of Object.entries(readStore()[profile] ?? {})) {
+    const progress = normalizeProgress(value)
+    if (progress) rows.push({ bookId, progress })
+  }
+  rows.sort((left, right) => right.progress.updatedAt - left.progress.updatedAt)
+  return rows[0]
 }
 
 export function pictureProgressPosition(progress: PictureProgress | undefined, pageCount: number) {
-  if (!progress || pageCount <= 0) return 0
+  if (!progress || !Number.isFinite(progress.pageIndex) || pageCount <= 0) return 0
   return Math.max(0, Math.min(100, Math.round(((progress.pageIndex + 1) / pageCount) * 100)))
 }
 
@@ -303,23 +396,33 @@ function deterministicShuffle<T>(items: T[], seed: string) {
 
 // 生词表来自随书附带的生词 PDF。题目只考词义，不冒充故事理解题。
 export function buildVocabularyQuiz(manifest: PictureBookManifest, count = 5): PictureQuestion[] {
-  const vocabulary = (manifest.vocabulary ?? []).filter(row => row.word && row.definition)
+  const vocabulary: PictureWord[] = []
+  const seenWords = new Set<string>()
+  for (const row of manifest.vocabulary ?? []) {
+    if (!row.word || !row.definition) continue
+    const key = row.word.trim().toLowerCase()
+    if (seenWords.has(key)) continue
+    seenWords.add(key)
+    vocabulary.push(row)
+  }
   if (vocabulary.length < 2) return []
   const picks = deterministicShuffle(vocabulary, `${manifest.bookId}:words`).slice(0, Math.min(count, vocabulary.length))
-  return picks.map((word) => {
+  return picks.flatMap((word) => {
     const correct = shortDefinition(word.definition)
     const distractors = deterministicShuffle(
-      vocabulary.filter(row => row.word !== word.word).map(row => shortDefinition(row.definition)).filter(value => value && value !== correct),
+      vocabulary.filter(row => row.word.toLowerCase() !== word.word.toLowerCase()).map(row => shortDefinition(row.definition)).filter(value => value && value !== correct),
       `${manifest.bookId}:${word.word}:options`,
     ).slice(0, 3)
     const options = deterministicShuffle([correct, ...distractors], `${manifest.bookId}:${word.word}:order`)
-    return {
+    // 所有释义都相同时只剩一个选项；这种题没有作答意义，直接不生成。
+    if (options.length < 2) return []
+    return [{
       id: `vocab-${word.word}`,
       prompt: `“${word.word}” 在本集故事里最接近哪个意思？`,
       options,
       answer: options.indexOf(correct),
       explanation: word.example ? `例句：${word.example}` : undefined,
-    }
+    }]
   })
 }
 

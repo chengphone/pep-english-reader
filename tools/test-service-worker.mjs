@@ -17,7 +17,7 @@ function harness(){
  // Request constructor requires absolute URLs, so mirror that behavior here.
  const ScopedRequest=class extends Request{constructor(input,init){super(typeof input==='string'?new URL(input,base).href:input,init)}}
  vm.runInNewContext(source,{self,caches,URL,Request:ScopedRequest,Response,AbortController,setTimeout,clearTimeout,fetch:(request,init)=>fetchImpl(request,init)})
- return {stores,cacheFor,addAlls,network(fn){fetchImpl=fn},quota(){failWrites=true},async install(){handlers.install({waitUntil:p=>pending.push(p)});await Promise.all(pending)},async activate(){handlers.activate({waitUntil:p=>pending.push(p)});await Promise.all(pending)},async request(path,navigation=false){let response;const waits=[];const request=new Request(new URL(path,base));if(navigation)Object.defineProperty(request,'mode',{value:'navigate'});handlers.fetch({request,respondWith:p=>response=p,waitUntil:p=>waits.push(p)});if(!response)return undefined;const result=await response;await Promise.all(waits);return result}}
+ return {stores,cacheFor,addAlls,network(fn){fetchImpl=fn},quota(){failWrites=true},async install(){handlers.install({waitUntil:p=>pending.push(p)});await Promise.all(pending)},async activate(){handlers.activate({waitUntil:p=>pending.push(p)});await Promise.all(pending)},async request(path,navigation=false,headers){let response;const waits=[];const request=new Request(new URL(path,base),{headers});if(navigation)Object.defineProperty(request,'mode',{value:'navigate'});handlers.fetch({request,respondWith:p=>response=p,waitUntil:p=>waits.push(p)});if(!response)return undefined;const result=await response;await Promise.all(waits);return result}}
 }
 test('activation preserves caches belonging to other applications',async()=>{
  const h=harness();h.cacheFor('another-app-v1');h.cacheFor('pep-reader-shell-obsolete');await h.activate()
@@ -108,6 +108,37 @@ test('hashed build assets are served from cache without a network request',async
  assert.equal(await (await h.request('assets/index-abc.js')).text(),'cached-js')
 })
 
+test('cached book media revalidates in the background so replaced files become visible',async()=>{
+ const h=harness()
+ h.network(async()=>new Response('old-bytes',{status:200}))
+ assert.equal(await (await h.request('/book-data/demo/pages/001.jpg')).text(),'old-bytes')
+ h.network(async()=>new Response('new-bytes',{status:200}))
+ // 当次仍返回旧缓存，后台刷新在 waitUntil 完成后写入新字节。
+ assert.equal(await (await h.request('/book-data/demo/pages/001.jpg')).text(),'old-bytes')
+ h.network(async()=>{throw new Error('offline')})
+ assert.equal(await (await h.request('/book-data/demo/pages/001.jpg')).text(),'new-bytes')
+})
+
+test('stable audio-library files live in the data cache and survive an app update',async()=>{
+ const h=harness()
+ const file='audio/library/'+'a'.repeat(64)+'.mp3'
+ h.network(async()=>new Response('audio-bytes',{status:200}))
+ assert.equal(await (await h.request(file)).text(),'audio-bytes')
+ assert([...h.stores.keys()].some(name=>name.startsWith('pep-reader-data-')),'stable audio must not live in the versioned shell cache')
+ await h.activate()
+ h.network(async()=>{throw new Error('offline')})
+ assert.equal(await (await h.request(file)).text(),'audio-bytes')
+})
+
+test('activation carries stable audio forward from an older shell cache',async()=>{
+ const h=harness()
+ const file='audio/library/'+'b'.repeat(64)+'.mp3'
+ await h.cacheFor('pep-reader-shell-previous').put(base+file,new Response('old-audio'))
+ await h.activate()
+ h.network(async()=>{throw new Error('offline')})
+ assert.equal(await (await h.request(file)).text(),'old-audio')
+})
+
 test('a stalled data request falls back to the cached copy instead of waiting for the network',async()=>{
  const h=harness();h.network(async()=>json('cached catalog'));await h.request('data/word-learning/books.json')
  let aborted=false
@@ -174,4 +205,23 @@ test('picture-data is cached for offline picture books and is not treated as the
  assert.equal(await cached.text(),'page-image')
  const catalog=await h.request('/picture-data/picture-books.json')
  assert.equal(catalog.type,'error')
+})
+
+test('offline range requests fall back to the cached full media file',async()=>{
+ const h=harness()
+ h.network(async()=>new Response('full-audio',{status:200}))
+ await h.request('/book-data/demo/audio/1.mp3')
+ h.network(async()=>{throw new Error('offline')})
+ // 播放器定位时会发 Range；缓存里只有完整文件，返回 200 让浏览器自己读全量。
+ const response=await h.request('/book-data/demo/audio/1.mp3',false,{Range:'bytes=0-3'})
+ assert.equal(response.status,200)
+ assert.equal(await response.text(),'full-audio')
+})
+
+test('a partial range response is never stored as a complete cached file',async()=>{
+ const h=harness()
+ h.network(async()=>new Response('part',{status:206,headers:{'Content-Range':'bytes 0-3/100'}}))
+ const response=await h.request('/book-data/demo/audio/1.mp3',false,{Range:'bytes=0-3'})
+ assert.equal(response.status,206)
+ assert(!h.stores.has('pep-reader-books-v1')||!h.stores.get('pep-reader-books-v1').size,'206 must not be cached')
 })

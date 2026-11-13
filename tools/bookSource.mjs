@@ -1,5 +1,5 @@
 // 教材源解析：目录直接使用，ZIP 解压到用户缓存目录后复用。
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, realpathSync, statSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { dirname, join, resolve, sep } from 'node:path'
@@ -29,6 +29,25 @@ export function safeJoin(root, relative) {
   const target = resolve(root, '.' + (relative.startsWith('/') ? relative : '/' + relative))
   if (target !== root && !target.startsWith(root + sep)) return null
   return target
+}
+
+// safeJoin 只做词法检查；这里再用 realpath 挡住指向根目录之外的符号链接。
+export function safeRealJoin(root, relative) {
+  const target = safeJoin(root, relative)
+  if (!target || !existsSync(target)) return null
+  try {
+    const realRoot = realpathSync(root)
+    const realTarget = realpathSync(target)
+    if (realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) return null
+    return realTarget
+  } catch {
+    return null
+  }
+}
+
+// 教材 id 会成为 book-data 下的目录名，必须是单段安全名称。
+export function validBookId(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value) && value !== '.' && value !== '..'
 }
 
 async function extractZip(zipPath) {
@@ -101,6 +120,7 @@ export async function resolveBookSource(input = defaultBookInput()) {
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
   if (!Array.isArray(manifest.pages) || !manifest.pages.length) throw new Error('book.json 没有页面。')
   const id = String(manifest.bookId || 'book').trim() || 'book'
+  if (!validBookId(id)) throw new Error(`book.json 的 bookId 必须是单段安全名称（字母、数字、点、下划线、短横线）：${id}`)
   return {
     root,
     id,

@@ -25,7 +25,11 @@ async function store(file:string,blob:Blob){
  await new Promise<void>((resolve,reject)=>{const tx=db.transaction('audio','readwrite');tx.objectStore('audio').put(value);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error??new Error('原音保存失败'));tx.onabort=()=>reject(tx.error??new Error('原音保存已中止'))})
 }
 async function validBytes(bytes:ArrayBuffer,digest:string){
- const result=await crypto.subtle.digest('SHA-256',bytes)
+ // 局域网明文 HTTP 不是安全上下文，crypto.subtle 不存在。此时无法校验摘要，
+ // 但不能把“无法校验”当成“文件损坏”，否则手机通过局域网打开时所有原音都会消失。
+ const subtle=globalThis.crypto?.subtle
+ if(!subtle)return true
+ const result=await subtle.digest('SHA-256',bytes)
  return [...new Uint8Array(result)].map(n=>n.toString(16).padStart(2,'0')).join('')===digest
 }
 async function load(file:string):Promise<Blob|undefined>{

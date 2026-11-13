@@ -78,6 +78,9 @@ export async function cacheBook(
   if (!('caches' in window)) throw new Error('当前浏览器不支持离线缓存，请使用 HTTPS 或 localhost 打开。')
   const urls = collectBookUrls(book)
   if (!urls.length) throw new Error('这本教材没有可缓存的资源。')
+  // Service Worker 只接管同源请求，跨域目录的媒体缓存无法在断网时回放。
+  const crossOrigin = urls.find(url => new URL(url).origin !== location.origin)
+  if (crossOrigin) throw new Error('跨域教材暂不支持离线保存；请把教材和页面放在同一域名下再重试。')
   const cache = await caches.open(BOOK_CACHE)
   let done = 0
   let bytes = 0
@@ -140,6 +143,11 @@ export async function removeBookCache(bookId: string) {
 
 export async function estimateStorage() {
   if (!navigator.storage?.estimate) return { usage: 0, quota: 0 }
-  const estimate = await navigator.storage.estimate()
-  return { usage: estimate.usage ?? 0, quota: estimate.quota ?? 0 }
+  try {
+    const estimate = await navigator.storage.estimate()
+    return { usage: estimate.usage ?? 0, quota: estimate.quota ?? 0 }
+  } catch {
+    // 估算失败不影响已经完成的下载/删除操作。
+    return { usage: 0, quota: 0 }
+  }
 }

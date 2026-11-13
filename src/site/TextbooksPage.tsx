@@ -31,6 +31,8 @@ export default function TextbooksPage({
   onRemote,
   onOnline,
   onPractice,
+  catalogError,
+  onRetryCatalog,
 }: {
   remoteBooks: Remote[]
   catalog: OnlineBook[]
@@ -38,6 +40,8 @@ export default function TextbooksPage({
   onRemote: (id: string) => void
   onOnline: (id: string) => void
   onPractice: () => void
+  catalogError?: string
+  onRetryCatalog?: () => void
 }) {
   const [grade, setGrade] = useState(() => { try { const value = Number(localStorage.getItem('pep:shelf-grade')); return value >= 3 && value <= 9 ? value : 3 } catch { return 3 } })
   const [query, setQuery] = useState('')
@@ -67,6 +71,11 @@ export default function TextbooksPage({
       <span className="page-toolbar-count" role="status">共 {total} 本可打开</span>
     </div>
 
+    {catalogError && <div className="library-catalog-note" role="alert">
+      <span>牛津教材目录加载失败：{catalogError}</span>
+      {onRetryCatalog && <button type="button" onClick={onRetryCatalog}>重新读取</button>}
+    </div>}
+
     {needle && total === 0 && <div className="page-empty">
       <Filter size={22}/>
       <strong>没有找到课本</strong>
@@ -81,7 +90,7 @@ export default function TextbooksPage({
       </header>
       {remoteResults.length > 0
         ? <div className="textbook-grid">{remoteResults.map(book => <TextbookCard key={book.id} title={book.title} subtitle={[book.series, book.publisher].filter(Boolean).join(' · ') || '在线教材'} cover={book.cover} onOpen={() => onRemote(book.id)}/>)}</div>
-        : <div className="series-empty">本机还没有牛津教材。运行 <code>npm run book:serve</code> 后会自动出现在这里。</div>}
+        : <div className="series-empty">{catalogError ? '在线教材目录暂不可用，请重试后再查看牛津教材。' : <>本机还没有牛津教材。运行 <code>npm run book:serve</code> 后会自动出现在这里。</>}</div>}
     </section>}
 
     <section className="textbook-series" aria-labelledby="textbook-pep">

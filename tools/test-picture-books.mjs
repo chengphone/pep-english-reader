@@ -3,9 +3,13 @@ import { test } from 'node:test'
 import {
   buildVocabularyQuiz,
   hasComprehension,
+  latestPictureProgress,
+  normalizePictureCatalog,
+  normalizePictureManifest,
   pictureArt,
   pictureProgressPosition,
   questionsFor,
+  readPictureProgress,
 } from '../src/pictureBooks.ts'
 import { PICTURE_ARCS, arcForEntry, arcForEpisode, groupPictureEntries } from '../src/pictureArcs.ts'
 import { groupPictureSeries, nextPictureInSeries } from '../src/pictureSeries.ts'
@@ -178,4 +182,118 @@ test('slim catalog replaces vocabulary arrays with their count without mutating 
   assert.equal(slim[6], null)
   assert.equal(rows[0].vocabulary.length, 2)
   assert.deepEqual(slimPictureCatalogRows([]), [])
+})
+
+test('vocabulary quiz deduplicates words and drops questions without two options', () => {
+  const duplicated = {
+    ...manifest,
+    vocabulary: [
+      { word: 'apple', definition: '苹果' },
+      { word: 'Apple', definition: '苹果' },
+      { word: 'banana', definition: '香蕉' },
+      { word: 'cake', definition: '蛋糕' },
+      { word: 'date', definition: '枣' },
+    ],
+  }
+  const questions = buildVocabularyQuiz(duplicated, 10)
+  assert.equal(questions.length, 4)
+  assert.equal(new Set(questions.map(question => question.id)).size, questions.length)
+  for (const question of questions) {
+    assert(question.options.length >= 2)
+    assert(question.answer >= 0 && question.answer < question.options.length)
+  }
+  const identical = buildVocabularyQuiz({
+    ...manifest,
+    vocabulary: [
+      { word: 'ant', definition: '蚂蚁' },
+      { word: 'bee', definition: '蚂蚁' },
+      { word: 'cat', definition: '蚂蚁' },
+      { word: 'dog', definition: '蚂蚁' },
+    ],
+  }, 5)
+  assert.deepEqual(identical, [])
+})
+
+test('picture catalog skips only rows with unusable manifest URLs', () => {
+  const base = new URL('https://example.test/picture-data/picture-books.json')
+  const entries = normalizePictureCatalog({
+    books: [
+      { id: 'ok', title: 'OK', series: 'Series', cover: 'cover.jpg', manifest: 'books/ok/book.json' },
+      { id: 'bad-cover', title: 'Bad Cover', cover: 'http://[', manifest: 'books/bc/book.json' },
+      { id: 'bad-manifest', title: 'Bad', manifest: 'http://[' },
+      { id: 'js', title: 'JS', manifest: 'javascript:alert(1)' },
+      null,
+      { id: 'ok', title: 'Duplicate' },
+    ],
+  }, base)
+  assert.deepEqual(entries.map(entry => entry.id), ['ok', 'bad-cover'])
+  assert.equal(entries[0].manifest, 'https://example.test/picture-data/books/ok/book.json')
+  assert.equal(entries[1].cover, 'https://example.test/picture-data/cover.jpg')
+  assert.deepEqual(normalizePictureCatalog([], base), [])
+  assert.throws(() => normalizePictureCatalog({}, base), /绘本目录格式无效/)
+})
+
+test('corrupt picture progress entries are ignored and latest valid entry wins', () => {
+  const store = new Map()
+  const original = globalThis.localStorage
+  globalThis.localStorage = {
+    getItem: key => store.get(key) ?? null,
+    setItem: (key, value) => { store.set(key, String(value)) },
+    removeItem: key => { store.delete(key) },
+  }
+  try {
+    store.set('pep:picture-progress:v1', JSON.stringify({ a: {
+      broken: { pageIndex: 'two', updatedAt: 10 },
+      older: { pageIndex: 1, mode: 'self', updatedAt: 5, completedPages: [0, -1, 2.5, 2] },
+      newer: { pageIndex: 3, mode: 'practice', updatedAt: 20, completedPages: [1] },
+    } }))
+    assert.equal(readPictureProgress('broken', 'a'), undefined)
+    assert.deepEqual(readPictureProgress('older', 'a'), { pageIndex: 1, mode: 'self', updatedAt: 5, completedPages: [0, 2] })
+    assert.deepEqual(latestPictureProgress('a'), {
+      bookId: 'newer',
+      progress: { pageIndex: 3, mode: 'practice', updatedAt: 20, completedPages: [1] },
+    })
+    assert.equal(latestPictureProgress('b'), undefined)
+  } finally {
+    if (original === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = original
+  }
+})
+
+test('picture manifest skips unusable pages and falls back to default media URLs', () => {
+  const base = new URL('https://example.test/picture-data/books/x/book.json')
+  const normalized = normalizePictureManifest({
+    bookId: 'x',
+    audio: 'http://[',
+    cover: 'javascript:alert(1)',
+    pages: [
+      { image: 'http://[', sentences: [] },
+      {
+        image: 'pages/001.jpg',
+        sentences: [
+          { text: 'Hello', rects: [[0, 0, 0.5, 0.2], 'bad'], start: '1.2', end: '2.5' },
+          { text: '   ', rects: [] },
+          null,
+        ],
+      },
+      { image: 'pages/002.jpg' },
+    ],
+    vocabulary: [{ word: 'hello', definition: '你好' }, { word: 'hello' }],
+    comprehension: [
+      { id: 'dup', prompt: 'Question', options: ['a', 'b'], answer: 1 },
+      { id: 'dup', prompt: 'Duplicate', options: ['a', 'b'], answer: 0 },
+      { prompt: 'Question without id', options: ['a', 'b'], answer: 0 },
+    ],
+  }, base)
+  assert.equal(normalized.pages.length, 2)
+  assert.equal(normalized.pages[0].image, 'https://example.test/picture-data/books/x/pages/001.jpg')
+  assert.equal(normalized.pages[0].sentences.length, 1)
+  assert.deepEqual(normalized.pages[0].sentences[0].rects, [[0, 0, 0.5, 0.2]])
+  assert.equal(normalized.pages[0].sentences[0].start, 1.2)
+  assert.equal(normalized.audio, 'https://example.test/picture-data/books/x/audio/episode.mp3')
+  assert.equal(normalized.cover, 'https://example.test/picture-data/books/x/cover.jpg')
+  assert.equal(normalized.vocabulary.length, 1)
+  assert.deepEqual(normalized.comprehension.map(question => question.id), ['dup', 'q3'])
+  assert.equal(normalizePictureManifest({ pages: [] }, base), undefined)
+  assert.equal(normalizePictureManifest({ pages: [{ image: 'http://[' }] }, base), undefined)
 })

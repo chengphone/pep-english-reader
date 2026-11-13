@@ -88,7 +88,7 @@ export default function FollowAlong({bookId,unitId,onBack,onSelectUnit,onSelectB
    <div className={`followalong-card-body${image?'':' without-image'}`}>
     {image&&<div className="followalong-visual"><img src={new URL(import.meta.env.BASE_URL+image.src.replace(/^\/+/,''),location.origin).href} alt={image.alt}/></div>}
     <div className="followalong-detail">
-     <h2 className={expressions?'followalong-expression':undefined}><button className="followalong-word-pronounce" onClick={()=>playing?pause():void run()} aria-label={`播放 ${vocab.english}`}>{vocab.english}</button></h2>
+     <h2 className={expressions?'followalong-expression':undefined}><button className="followalong-word-pronounce" onClick={()=>playing?pause():pausedRef.current?resume():void run()} aria-label={`播放 ${vocab.english}`}>{vocab.english}</button></h2>
      {entry?.phonetic&&<p className="followalong-phonetic">{entry.phonetic}</p>}
      <p className="followalong-meaning">{vocab.meaning}</p>
      <div className="followalong-controls">

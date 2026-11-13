@@ -6,12 +6,16 @@ import './SitePages.css'
 
 export default function PracticeCenter({
   pictureBooks,
+  catalogError,
+  onRetryCatalog,
   onFollowAlong,
   onDictation,
   onOpenPicture,
   onQuiz,
 }: {
   pictureBooks: PictureCatalogEntry[]
+  catalogError?: string
+  onRetryCatalog?: () => void
   onFollowAlong: (bookId: string) => void
   onDictation: () => void
   onOpenPicture: (id: string, page?: number, mode?: 'listen' | 'self' | 'practice') => void
@@ -67,12 +71,17 @@ export default function PracticeCenter({
           {query && <button type="button" aria-label="清空小测搜索" onClick={() => setQuery('')}><X size={15}/></button>}
         </label>
       </div>
-      {!pictureBooks.length && <div className="page-empty">
+      {!pictureBooks.length && (catalogError ? <div className="page-empty">
+        <BookOpen size={24}/>
+        <strong>绘本目录加载失败</strong>
+        <span>{catalogError}</span>
+        {onRetryCatalog && <button type="button" className="page-empty-action" onClick={onRetryCatalog}>重新读取</button>}
+      </div> : <div className="page-empty">
         <BookOpen size={24}/>
         <strong>还没有绘本练习</strong>
         <span>运行本地服务器并接入 Journey to the West 后，词汇小测会出现在这里。</span>
         <code>npm run book:prepare-picture &amp;&amp; npm run book:serve</code>
-      </div>}
+      </div>)}
       {pictureBooks.length > 0 && !quizBooks.length && <div className="page-empty"><Search size={22}/><strong>没有匹配的绘本</strong><span>换一个书名或集数试试。</span><button type="button" className="page-empty-action" onClick={() => setQuery('')}>清空搜索</button></div>}
       {visible.length > 0 && <div className="quiz-book-list">
         {visible.map(entry => <article key={entry.id} className="quiz-book-row">

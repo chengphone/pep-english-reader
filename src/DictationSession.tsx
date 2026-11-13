@@ -33,7 +33,10 @@ export default function DictationSession({words,title,repeat,audio,allowFallback
    if(record&&player.current){const audio=player.current;audio.onended=ended;audio.onerror=()=>fail('本地音频播放失败，请重听或重新导入。');void audio.play().catch(()=>fail('播放未启动，请点击重听。'));return}
    const u=new SpeechSynthesisUtterance(words[at].english);u.lang='en-US';u.rate=.85
    const voices=window.speechSynthesis.getVoices();u.voice=voices.find(v=>v.lang==='en-US'&&/Aria|Jenny|Samantha|Google US English/.test(v.name))??voices.find(v=>v.lang==='en-US')??null
-   utterance.current=u;u.onend=ended;u.onerror=()=>fail('备用语音播放失败，请导入本地音频。');try{window.speechSynthesis.speak(u)}catch{fail('备用语音播放失败')}
+   utterance.current=u;let watchdog:ReturnType<typeof setTimeout>|undefined;let settled=false
+   const finish=()=>{if(settled)return;settled=true;if(watchdog)clearTimeout(watchdog);ended()}
+   const failOnce=(message:string)=>{if(settled)return;settled=true;if(watchdog)clearTimeout(watchdog);fail(message)}
+   u.onend=finish;u.onerror=()=>failOnce('备用语音播放失败，请导入本地音频。');try{window.speechSynthesis.speak(u)}catch{failOnce('备用语音播放失败');return}watchdog=setTimeout(()=>{if(token===run.current)failOnce('备用语音没有响应，请重试或导入本地音频。')},8000)
   }
   say()
  }

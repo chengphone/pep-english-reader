@@ -17,11 +17,17 @@ const LEVEL_TABS: { value: PictureLevel | 'all'; label: string }[] = [
 export default function PictureLibrary({
   entries,
   ready,
+  catalogError,
+  catalogCached,
+  onRetryCatalog,
   onOpenPicture,
   onOpenTextbooks,
 }: {
   entries: PictureCatalogEntry[]
   ready: boolean
+  catalogError?: string
+  catalogCached?: boolean
+  onRetryCatalog?: () => void
   onOpenPicture: (id: string, page?: number) => void
   onOpenTextbooks: () => void
 }) {
@@ -124,7 +130,19 @@ export default function PictureLibrary({
 
     {!ready && <div className="series-empty">正在读取绘本目录…</div>}
 
-    {ready && !entries.length && <div className="page-empty library-empty">
+    {catalogCached && <div className="library-catalog-note" role="status">
+      <span>当前显示上次保存的绘本目录；网络恢复后可以重新读取最新目录。</span>
+      {onRetryCatalog && <button type="button" onClick={onRetryCatalog}>重新读取</button>}
+    </div>}
+
+    {ready && !entries.length && catalogError && <div className="page-empty library-empty">
+      <BookOpen size={26}/>
+      <strong>绘本目录加载失败</strong>
+      <span>{catalogError}</span>
+      {onRetryCatalog && <button type="button" className="page-empty-action" onClick={onRetryCatalog}>重新读取</button>}
+    </div>}
+
+    {ready && !entries.length && !catalogError && <div className="page-empty library-empty">
       <BookOpen size={26}/>
       <strong>本机还没有接入绘本资源</strong>
       <span>把绘本的 PDF、MP3 和生词 PDF 整理到仓库外，再用本地服务器打开即可。</span>

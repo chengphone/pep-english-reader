@@ -8,6 +8,9 @@ const BOOK_CACHE = 'pep-reader-books-v1'
 const BASE = '/pep-english-reader/'
 const CACHE_PREFIX = 'pep-reader-shell-'
 const isFreshData = pathname => (pathname.startsWith(BASE + 'data/') && pathname.endsWith('.json')) || pathname === BASE + 'audio/library-manifest.json' || pathname === BASE + 'remote-books.json'
+// 体积大、URL 稳定且内容不随应用版本变化的运行时资源。它们放在非版本化缓存里，
+// 避免每次应用更新时被版本清理删掉，导致离线跟读/OCR/PDF 功能失效。
+const isStableData = pathname => pathname.startsWith(BASE + 'audio/library/') || pathname.startsWith(BASE + 'ocr/') || pathname.startsWith(BASE + 'pdfjs/')
 // Filled with hashed build assets by tools/build-sw.mjs.
 const PRECACHE = []
 self.addEventListener('install', event => {
@@ -33,7 +36,7 @@ self.addEventListener('activate', event => {
         const old = await caches.open(key)
         for (const request of await old.keys()) {
           const url = new URL(request.url)
-          if (!isFreshData(url.pathname)) continue
+          if (!isFreshData(url.pathname) && !isStableData(url.pathname)) continue
           const response = await old.match(request)
           if (response) await dataCache.put(url.origin + url.pathname, response).catch(() => {})
         }
@@ -48,16 +51,32 @@ self.addEventListener('fetch', event => {
   const bookData = url.pathname.startsWith('/book-data/') || url.pathname.startsWith('/picture-data/')
   if (request.method !== 'GET' || url.origin !== self.location.origin || (!url.pathname.startsWith(BASE) && !bookData)) return
   if (bookData) {
+    const range = request.headers.has('Range')
+    const bypass = request.cache === 'reload' || request.cache === 'no-store'
+    const revalidate = request.cache === 'no-cache'
+    const cachePromise = caches.open(BOOK_CACHE).catch(() => undefined)
+    const cachedPromise = cachePromise.then(cache => cache?.match(request, {ignoreVary: true}).catch(() => undefined))
+    // 图片和完整音频先返回缓存，同时在后台重验证；部署时原地替换同名文件后，
+    // 下一次访问就能拿到新字节，而不是永远停留在旧缓存。
+    if (!range && !bypass && !revalidate) {
+      event.waitUntil((async () => {
+        const cached = await cachedPromise
+        if (!cached || cached.status === 206) return
+        const cache = await cachePromise
+        if (!cache) return
+        try {
+          const response = await fetch(request, { cache: 'no-cache' })
+          if (response.status === 200) await cache.put(request, response.clone()).catch(() => {})
+        } catch { /* 离线时保留旧缓存 */ }
+      })())
+    }
     event.respondWith((async () => {
-      const cache = await caches.open(BOOK_CACHE).catch(() => undefined)
-      let cached = await cache?.match(request, {ignoreVary: true}).catch(() => undefined)
+      const cache = await cachePromise
+      let cached = await cachedPromise
       // 旧版本可能把 206 分段响应写进缓存；分段响应不能当作完整文件复用。
       if (cached?.status === 206) cached = undefined
-      const range = request.headers.has('Range')
-      const bypass = request.cache === 'reload' || request.cache === 'no-store'
-      const revalidate = request.cache === 'no-cache'
       // 音频/视频的 Range 请求直接走网络和浏览器 HTTP 缓存，避免把 206 写进
-      // Cache Storage；图片和完整音频继续 cache-first。
+      // Cache Storage；图片和完整音频继续 cache-first 并后台刷新。
       if (cached && !bypass && !revalidate && !range) return cached
       try {
         const response = await fetch(request, revalidate ? { cache: 'no-cache' } : undefined)
@@ -77,10 +96,12 @@ self.addEventListener('fetch', event => {
     // cached copy only as an offline fallback. Hashed build assets, audio and images
     // stay cache-first because their URLs identify their contents.
     const freshData = isFreshData(url.pathname)
+    const stableData = isStableData(url.pathname)
+    const dataCache = freshData || stableData
     // Cache failures must not turn a successful online request into an offline error.
-    const cache = await caches.open(freshData ? DATA_CACHE : CACHE).catch(() => undefined)
+    const cache = await caches.open(dataCache ? DATA_CACHE : CACHE).catch(() => undefined)
     const navigation = request.mode === 'navigate'
-    const key = freshData ? url.origin + url.pathname : navigation ? url.origin + BASE + 'index.html' : request
+    const key = dataCache ? url.origin + url.pathname : navigation ? url.origin + BASE + 'index.html' : request
     // Static assets vary only by URL; some hosts add `Vary: Origin`, while precache
     // requests and page requests send different Origin headers. Ignore Vary so
     // offline loads still hit the precached copy.
