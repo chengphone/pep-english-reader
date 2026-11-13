@@ -105,8 +105,9 @@
   background: #fff;
   box-shadow: 0 28px 58px -44px rgba(9, 63, 46, .5);
 }
-.pbook-paper > .pbook-canvas { position: relative; }
-.pbook-canvas > img { display: block; width: 100%; height: auto; border-radius: 8px; user-select: none; }
+.pbook-paper > .pbook-canvas { position: relative; overflow: hidden; border-radius: 8px; }
+.pbook-page { position: absolute; top: 0; left: 0; width: 100%; }
+.pbook-page > img { display: block; width: 100%; height: auto; user-select: none; }
 .pbook-hotspots { position: absolute; inset: 0; pointer-events: none; }
 .pbook-sentence-overlay { display: contents; }
 .pbook-hotspot {
@@ -336,7 +337,6 @@
   .pbook-next-episode { min-height: 34px; padding: 0 9px; font-size: 10px; }
   .pbook-layout { padding: 9px 10px 34px; gap: 9px; }
   .pbook-paper { padding: 4px; border-radius: 12px; }
-  .pbook-canvas > img { border-radius: 8px; }
   .pbook-pager { gap: 6px; margin-top: 7px; }
   .pbook-page-button { min-height: 38px; padding: 0 9px; font-size: 10.5px; }
   .pbook-pager-center strong { font-size: 16px; }

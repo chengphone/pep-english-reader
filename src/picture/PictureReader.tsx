@@ -8,6 +8,7 @@ import { deleteRecording, latestRecording, readRecording, saveRecording, type Re
 import { checkPictureOffline, savePictureOffline, type PictureOfflineState } from './offlinePicture'
 import { locateWord } from './wordLocator'
 import { zoomScrollTarget } from './zoomScroll'
+import { contentBoxFromPixels, type CropBox } from './trimMargins'
 
 const MODE_INFO: Record<PictureMode, { label: string; hint: string; detail: string }> = {
   listen: { label: '听故事', hint: '整集原声', detail: '播放本集完整原声；有已对齐的逐句时间戳时自动高亮当前句，并可用“跟随”自动翻到该句所在跨页。' },
@@ -24,6 +25,34 @@ function formatTime(value: number) {
   const minutes = Math.floor(value / 60)
   const seconds = Math.floor(value % 60)
   return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+// 裁掉绘本图片自带的白边。分析在小尺寸画布上做，大约 320px 宽即可，
+// 结果按图片地址缓存；预取下一页时顺便算好，翻页时不会先闪一下原图。
+type CropMeta = { width: number; height: number; box?: CropBox }
+const CROP_WIDTH = 320
+const cropCache = new Map<string, CropMeta>()
+let cropCanvas: HTMLCanvasElement | undefined
+
+function measureCrop(image: HTMLImageElement): CropMeta {
+  const width = image.naturalWidth
+  const height = image.naturalHeight
+  if (!width || !height) return { width: 0, height: 0 }
+  try {
+    const scale = Math.min(1, CROP_WIDTH / width)
+    const w = Math.max(1, Math.round(width * scale))
+    const h = Math.max(1, Math.round(height * scale))
+    cropCanvas ??= document.createElement('canvas')
+    cropCanvas.width = w
+    cropCanvas.height = h
+    const context = cropCanvas.getContext('2d', { willReadFrequently: true })
+    if (!context) return { width, height }
+    context.drawImage(image, 0, 0, w, h)
+    return { width, height, box: contentBoxFromPixels(context.getImageData(0, 0, w, h).data, w, h) }
+  } catch {
+    // 跨域图片或 canvas 被禁用时保持整页显示。
+    return { width, height }
+  }
 }
 
 export default function PictureReader({
@@ -64,6 +93,7 @@ export default function PictureReader({
   const [wordError, setWordError] = useState('')
   const [wordLocateNote, setWordLocateNote] = useState('')
   const [zoomed, setZoomed] = useState(false)
+  const [pageCrop, setPageCrop] = useState<(CropMeta & { src: string }) | null>(null)
   // 桌面端可以把右侧工具收起来，给课本留出完整宽度；手机端面板在正文下方，
   // 该开关由 CSS 隐藏，不影响手机布局。
   const [panelOpen, setPanelOpen] = useState(() => {
@@ -122,6 +152,9 @@ export default function PictureReader({
   }, [entry, initialPage, initialMode, profile])
 
   const page = book?.manifest.pages[clamp(pageIndex, 0, Math.max(0, (book?.manifest.pages.length ?? 1) - 1))]
+  // 当前页的白边裁剪信息：优先用本页加载后测到的，其次用预取时算好的。
+  const cropMeta = page ? (pageCrop?.src === page.image ? pageCrop : cropCache.get(page.image)) : undefined
+  const crop = cropMeta?.box
   const selected = page?.sentences.find(sentence => sentence.id === selectedId) ?? null
   const lastPage = (book?.manifest.pages.length ?? 1) - 1
   const [completed, setCompleted] = useState(false)
@@ -171,19 +204,24 @@ export default function PictureReader({
     const paper = paperRef.current
     const canvas = paper?.querySelector<HTMLElement>('.pbook-canvas')
     if (!paper || !canvas) return
-    const rects = page?.sentences.find(item => item.id === selectedId)?.rects ?? []
+    const rects = (page?.sentences.find(item => item.id === selectedId)?.rects ?? []).map(rect => (crop
+      ? [(rect[0] - crop.x) / crop.w, (rect[1] - crop.y) / crop.h, rect[2] / crop.w, rect[3] / crop.h] as [number, number, number, number]
+      : rect as [number, number, number, number]))
     const target = zoomScrollTarget(rects, canvas.offsetWidth, canvas.offsetLeft, paper.clientWidth, paper.scrollWidth - paper.clientWidth)
     if (target === undefined) return
     if (Math.abs(paper.scrollLeft - target) < 8) return
     paper.scrollTo({ left: target, behavior: 'smooth' })
-  }, [zoomed, pageIndex, selectedId, book?.id])
+  }, [zoomed, pageIndex, selectedId, book?.id, crop])
 
-  // 预取下一张跨页图，翻页时直接命中缓存。
+  // 预取下一张跨页图，顺便算好白边裁剪，翻页时直接命中缓存。
   useEffect(() => {
     const next = book?.manifest.pages[pageIndex + 1]
-    if (!next?.image) return
+    if (!next?.image || cropCache.has(next.image)) return
     const image = new Image()
     image.decoding = 'async'
+    image.onload = () => {
+      if (!cropCache.has(next.image)) cropCache.set(next.image, measureCrop(image))
+    }
     image.src = next.image
   }, [book?.id, pageIndex])
 
@@ -578,9 +616,29 @@ export default function PictureReader({
     <main className={`pbook-layout${panelOpen ? '' : ' is-panel-collapsed'}${zoomed ? ' is-zoomed' : ''}`}>
       <section className="pbook-stage" aria-label="绘本阅读区">
         <div ref={paperRef} className={`pbook-paper${zoomed ? ' is-zoomed' : ''}`}>
-          <div className="pbook-canvas">
-            {page && <>
-              <img src={page.image} alt={`第 ${page.displayPage} 页原版绘本跨页`} draggable={false} fetchPriority="high" decoding="async"/>
+          <div
+            className="pbook-canvas"
+            style={cropMeta && cropMeta.width && cropMeta.height
+              ? { aspectRatio: `${cropMeta.width * (crop?.w ?? 1)} / ${cropMeta.height * (crop?.h ?? 1)}` }
+              : undefined}
+          >
+            {page && <div
+              className="pbook-page"
+              style={crop ? { width: `${100 / crop.w}%`, left: `${-crop.x / crop.w * 100}%`, top: `${-crop.y / crop.h * 100}%` } : undefined}
+            >
+              <img
+                src={page.image}
+                alt={`第 ${page.displayPage} 页原版绘本跨页`}
+                draggable={false}
+                fetchPriority="high"
+                decoding="async"
+                onLoad={event => {
+                  const src = page.image
+                  const meta = cropCache.get(src) ?? measureCrop(event.currentTarget)
+                  if (!cropCache.has(src)) cropCache.set(src, meta)
+                  setPageCrop({ src, ...meta })
+                }}
+              />
               <div className="pbook-hotspots" aria-hidden="false">
                 {page.sentences.map(sentence => <span key={sentence.id} className="pbook-sentence-overlay">
                   {sentence.rects.map((rect, index) => <button
@@ -594,7 +652,7 @@ export default function PictureReader({
                   />)}
                 </span>)}
               </div>
-            </>}
+            </div>}
           </div>
         </div>
         <div className="pbook-pager">
