@@ -58,6 +58,24 @@
 }
 .pbook-next-episode:hover { border-color: #BBD9C8; background: #E6F3EC; }
 .pbook-next-episode:disabled { border-color: #E4EDE6; background: #F6F9F6; color: #9AAFA4; cursor: default; }
+.pbook-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #DAE7DF;
+  border-radius: 10px;
+  background: #fff;
+  color: #0F6049;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pbook-panel-toggle:hover { border-color: #BBD9C8; background: #E6F3EC; }
+.pbook-panel-toggle[aria-pressed="true"] { border-color: #0F6049; background: #E6F3EC; }
 
 .pbook-layout {
   width: 100%;
@@ -68,6 +86,11 @@
   align-items: start;
   gap: 16px;
   padding: 16px max(24px, env(safe-area-inset-left, 0px)) 28px max(24px, env(safe-area-inset-right, 0px));
+}
+/* 电脑端收起工具后让课本占满整行；手机端面板在下方，保持原布局。 */
+@media (min-width: 981px) {
+  .pbook-layout.is-panel-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .pbook-layout.is-panel-collapsed .pbook-panel { display: none; }
 }
 .pbook-stage { min-width: 0; }
 .pbook-paper {
@@ -198,7 +221,6 @@
 .pbook-mode-tabs button small { color: #8A9A90; font-size: 8px; }
 .pbook-mode-tabs button.is-active { background: #fff; color: #0F6049; box-shadow: 0 5px 12px -8px rgba(9, 63, 46, .4); }
 .pbook-mode-tabs button.is-active small { color: #0F6049; }
-.pbook-mode-note { margin: 9px 3px 0; padding: 8px 10px; border-radius: 9px; background: #F8FAF5; color: #70847A; font-size: 9.5px; line-height: 1.55; }
 .pbook-offline { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 9px; border: 1px solid #E4EDE6; border-radius: 10px; background: #FCFDFB; }
 .pbook-offline-copy { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .pbook-offline-copy strong { color: #203630; font-size: 10.5px; }
@@ -212,6 +234,14 @@
 .pbook-panel-section > header, .pbook-recording > header, .pbook-quiz-card > header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
 .pbook-panel-section h2, .pbook-recording h2, .pbook-quiz-card h2 { margin: 0; color: #203630; font-size: 12px; font-weight: 700; letter-spacing: .01em; }
 .pbook-panel-section > header span, .pbook-recording > header span, .pbook-quiz-card > header span { color: #8A9A90; font-size: 8.5px; }
+.pbook-words-section > summary { display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px; cursor: pointer; list-style: none; }
+.pbook-words-section > summary::-webkit-details-marker { display: none; }
+.pbook-words-section > summary h2 { margin: 0; color: #203630; font-size: 12px; font-weight: 700; letter-spacing: .01em; }
+.pbook-words-section > summary > span { margin-left: auto; color: #8A9A90; font-size: 8.5px; }
+.pbook-words-section > summary > svg { flex: none; align-self: center; color: #8A9A90; transition: transform .15s ease; }
+.pbook-words-section[open] > summary { margin-bottom: 7px; }
+.pbook-words-section[open] > summary > svg { transform: rotate(180deg); }
+.pbook-words-section > summary:hover h2 { color: #0F6049; }
 .pbook-sentence-list { max-height: 268px; overflow-y: auto; padding-right: 3px; scrollbar-width: thin; }
 .pbook-sentence {
   width: 100%;
@@ -285,6 +315,7 @@
   .pbook-layout { grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; }
 }
 @media (max-width: 980px) {
+  .pbook-panel-toggle { display: none; }
   .pbook-layout { grid-template-columns: 1fr; padding-bottom: 90px; }
   .pbook-panel { position: static; max-height: none; overflow: visible; }
   .pbook-paper { padding: 6px; }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react'
-import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronLeft, ChevronRight, Download, Headphones, Info, Maximize2, Mic, Minimize2, Pause, Play, Repeat, Square, Trash2, Volume2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Download, Headphones, Info, Maximize2, Mic, Minimize2, PanelRightClose, PanelRightOpen, Pause, Play, Repeat, Square, Trash2, Volume2 } from 'lucide-react'
 import './PictureReader.css'
 import type { PictureBook, PictureCatalogEntry, PictureMode, PictureSentence } from '../pictureBooks'
 import { hasComprehension, loadPictureBook, markPicturePageComplete, readPictureProgress, writePictureProgress } from '../pictureBooks'
@@ -64,6 +64,11 @@ export default function PictureReader({
   const [wordError, setWordError] = useState('')
   const [wordLocateNote, setWordLocateNote] = useState('')
   const [zoomed, setZoomed] = useState(false)
+  // 桌面端可以把右侧工具收起来，给课本留出完整宽度；手机端面板在正文下方，
+  // 该开关由 CSS 隐藏，不影响手机布局。
+  const [panelOpen, setPanelOpen] = useState(() => {
+    try { return localStorage.getItem('pep:picture-panel:v1') !== 'closed' } catch { return true }
+  })
   const [recordingState, setRecordingState] = useState<'idle' | 'recording' | 'saving'>('idle')
   const [recordError, setRecordError] = useState('')
   const [recordingUrl, setRecordingUrl] = useState('')
@@ -87,6 +92,10 @@ export default function PictureReader({
   const mountedRef = useRef(true)
   const recordStartingRef = useRef(false)
   const recordRequestRef = useRef(0)
+
+  useEffect(() => {
+    try { localStorage.setItem('pep:picture-panel:v1', panelOpen ? 'open' : 'closed') } catch { /* 隐私模式只保留本次状态 */ }
+  }, [panelOpen])
 
   useEffect(() => {
     let live = true
@@ -269,6 +278,13 @@ export default function PictureReader({
     if (audioRef.current && !audioRef.current.paused) setFollowAudio(false)
     setPageIndex(clamp(next, 0, lastPage))
     setRecordError('')
+  }
+
+  function toggleZoom() {
+    const next = !zoomed
+    setZoomed(next)
+    // 电脑端放大时收起右侧工具，让课本占满整行；手机上该开关不可见。
+    if (next && window.matchMedia('(min-width: 981px)').matches) setPanelOpen(false)
   }
 
   function toggleAudio() {
@@ -545,9 +561,20 @@ export default function PictureReader({
       >
         <span>下一集</span><ChevronRight size={16}/>
       </button>
+      <button
+        type="button"
+        className="pbook-panel-toggle"
+        aria-pressed={!panelOpen}
+        aria-label={panelOpen ? '收起阅读工具' : '展开阅读工具'}
+        title={panelOpen ? '收起右侧阅读工具，给课本更多空间' : '展开右侧阅读工具'}
+        onClick={() => setPanelOpen(value => !value)}
+      >
+        {panelOpen ? <PanelRightClose size={15}/> : <PanelRightOpen size={15}/>}
+        <span>{panelOpen ? '收起工具' : '阅读工具'}</span>
+      </button>
     </header>
 
-    <main className="pbook-layout">
+    <main className={`pbook-layout${panelOpen ? '' : ' is-panel-collapsed'}`}>
       <section className="pbook-stage" aria-label="绘本阅读区">
         <div ref={paperRef} className={`pbook-paper${zoomed ? ' is-zoomed' : ''}`}>
           <div className="pbook-canvas">
@@ -578,7 +605,7 @@ export default function PictureReader({
               <button type="button" className={`pbook-complete${completed ? ' is-done' : ''}`} onClick={() => { if (!book) return; markPicturePageComplete(book.id, profile, pageIndex); setCompleted(true); setCompletionTick(value => value + 1) }}>
                 {completed ? <Check size={13}/> : null}{completed ? '本页已读完' : '标记本页读完'}
               </button>
-              <button type="button" className="pbook-zoom" aria-pressed={zoomed} aria-label={zoomed ? '缩小绘本页面' : '放大绘本页面'} onClick={() => setZoomed(value => !value)}>
+              <button type="button" className="pbook-zoom" aria-pressed={zoomed} aria-label={zoomed ? '缩小绘本页面' : '放大绘本页面'} onClick={toggleZoom}>
                 {zoomed ? <Minimize2 size={13}/> : <Maximize2 size={13}/>}<span>{zoomed ? '缩小' : '放大'}</span>
               </button>
             </div>
@@ -606,7 +633,7 @@ export default function PictureReader({
             <span className="pbook-player-time">{formatTime(duration || book.manifest.audioDuration || 0)}</span>
             <label className="pbook-player-speed"><span className="sr-only">播放速度</span><select value={speed} onChange={event => setSpeed(Number(event.target.value))} aria-label="播放速度"><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option></select></label>
           </div>
-          <p className="pbook-player-note"><Info size={13}/>{hasTimestamps ? `播放时会按已对齐的句子时间戳自动高亮；点击句子可单独回放该句；${followAudio ? '页面会跟随当前句自动翻页。' : '“跟随”已关闭，页面不会自动翻页。'}` : '本集没有经过校对的逐句时间戳；句子高亮由点击控制，不伪造自动同步。'}</p>
+          {(!hasTimestamps || !followAudio) && <p className="pbook-player-note"><Info size={13}/>{hasTimestamps ? '“跟随”已关闭，页面不会自动翻页。' : '本集没有经过校对的逐句时间戳；句子高亮由点击控制，不伪造自动同步。'}</p>}
           {audioError && <p className="pbook-player-error" role="alert">{audioError}</p>}
           <audio
             ref={audioRef}
@@ -627,11 +654,10 @@ export default function PictureReader({
           />
         </div>
         <div className="pbook-mode-tabs" role="tablist" aria-label="阅读模式">
-          {(Object.keys(MODE_INFO) as PictureMode[]).map(value => <button key={value} type="button" role="tab" aria-selected={mode === value} className={mode === value ? 'is-active' : ''} onClick={() => changeMode(value)}>
+          {(Object.keys(MODE_INFO) as PictureMode[]).map(value => <button key={value} type="button" role="tab" aria-selected={mode === value} className={mode === value ? 'is-active' : ''} title={MODE_INFO[value].detail} onClick={() => changeMode(value)}>
             <span>{MODE_INFO[value].label}</span><small>{MODE_INFO[value].hint}</small>
           </button>)}
         </div>
-        <p className="pbook-mode-note">{MODE_INFO[mode].detail}</p>
 
         <section className="pbook-offline" aria-label="离线阅读">
           <div className="pbook-offline-copy">
@@ -682,8 +708,12 @@ export default function PictureReader({
           </>}
         </section>}
 
-        <section className="pbook-panel-section" aria-labelledby="pbook-words-title">
-          <header><h2 id="pbook-words-title">本集生词</h2><span>{vocabulary.length} 个</span></header>
+        <details className="pbook-panel-section pbook-words-section" aria-labelledby="pbook-words-title">
+          <summary>
+            <h2 id="pbook-words-title">本集生词</h2>
+            <span>{vocabulary.length} 个</span>
+            <ChevronDown size={14} aria-hidden="true"/>
+          </summary>
           {vocabulary.length > 0 ? <>
             <div className="pbook-word-list">
               {shownWords.map(word => <div key={word.word} className={`pbook-word${speakingWord === word.word ? ' is-speaking' : ''}`}>
@@ -698,7 +728,7 @@ export default function PictureReader({
             {vocabulary.length > 8 && <button type="button" className="pbook-words-more" onClick={() => setWordsOpen(value => !value)}>{wordsOpen ? '收起生词' : `显示全部 ${vocabulary.length} 个生词`}</button>}
             <p className="pbook-word-note">单词读音由本机系统 TTS 合成，不发送到服务器。</p>
           </> : <p className="pbook-empty-note">这一集没有随书生词表。</p>}
-        </section>
+        </details>
 
         <section className="pbook-quiz-card" aria-labelledby="pbook-quiz-title">
           <header><h2 id="pbook-quiz-title">读完做个小测</h2><span>{hasComprehension(book.manifest) ? '理解题 + 词汇' : '词汇小测'}</span></header>
