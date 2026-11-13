@@ -45,6 +45,9 @@ if (!existsSync(join(DIST, 'index.html'))) {
 if (OUT === ROOT || OUT.startsWith(ROOT + sep) || ROOT.startsWith(OUT + sep)) {
   throw new Error(`输出目录不能是仓库目录、仓库内的目录或仓库的上级目录：${OUT}`)
 }
+if (INCLUDE_PICTURE && (PICTURE_DIR === OUT || PICTURE_DIR.startsWith(OUT + sep) || OUT.startsWith(PICTURE_DIR + sep))) {
+  throw new Error(`输出目录不能与绘本目录重叠：${OUT} / ${PICTURE_DIR}`)
+}
 if (existsSync(OUT)) {
   const entries = readdirSync(OUT)
   const looksLikeExport = entries.length === 0 || existsSync(join(OUT, 'pep-english-reader')) || existsSync(join(OUT, 'book-data'))
@@ -54,7 +57,10 @@ if (existsSync(OUT)) {
 const sources = []
 const ids = new Set()
 for (const input of BOOK_INPUTS) {
+  const inputPath = resolve(input)
+  if (inputPath === OUT || inputPath.startsWith(OUT + sep)) throw new Error(`教材源不能放在输出目录里：${inputPath}`)
   const source = await resolveBookSource(input)
+  if (source.root === OUT || source.root.startsWith(OUT + sep)) throw new Error(`教材源不能放在输出目录里：${source.root}`)
   if (ids.has(source.id)) throw new Error(`教材 id 重复：${source.id}（${input}）`)
   ids.add(source.id)
   sources.push(source)

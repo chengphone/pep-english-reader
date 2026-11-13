@@ -9,6 +9,7 @@ import {
 } from '../src/pictureBooks.ts'
 import { PICTURE_ARCS, arcForEntry, arcForEpisode, groupPictureEntries } from '../src/pictureArcs.ts'
 import { groupPictureSeries, nextPictureInSeries } from '../src/pictureSeries.ts'
+import { slimPictureCatalogRows } from './pictureCatalog.mjs'
 
 const manifest = {
   schemaVersion: 1,
@@ -155,4 +156,26 @@ test('next episode stays inside the same picture series', () => {
   assert.equal(nextPictureInSeries(entries, 'a3'), undefined)
   assert.equal(nextPictureInSeries(entries, 'b1'), undefined)
   assert.equal(nextPictureInSeries(entries, 'missing'), undefined)
+})
+
+test('slim catalog replaces vocabulary arrays with their count without mutating rows', () => {
+  const rows = [
+    { id: 'a', title: 'A', vocabulary: [{ word: 'one' }, { word: 'two' }] },
+    { id: 'b', vocabulary: 7 },
+    { id: 'c' },
+    { id: 'd', vocabulary: '3' },
+    { id: 'e', vocabulary: 'not-a-number' },
+    { id: 'f', vocabulary: [] },
+    null,
+  ]
+  const slim = slimPictureCatalogRows(rows)
+  assert.deepEqual(slim[0], { id: 'a', title: 'A', vocabulary: 2 })
+  assert.equal(slim[1].vocabulary, 7)
+  assert.equal(slim[2].vocabulary, 0)
+  assert.equal(slim[3].vocabulary, 3)
+  assert.equal(slim[4].vocabulary, 0)
+  assert.equal(slim[5].vocabulary, 0)
+  assert.equal(slim[6], null)
+  assert.equal(rows[0].vocabulary.length, 2)
+  assert.deepEqual(slimPictureCatalogRows([]), [])
 })

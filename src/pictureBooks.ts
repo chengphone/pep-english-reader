@@ -111,7 +111,8 @@ function normalizeCatalog(value: unknown, base: URL): PictureCatalogEntry[] {
       art: cleanText(row.art) ? new URL(String(row.art), base).href : undefined,
       manifest: new URL(String(row.manifest), base).href,
       pages: Number.isFinite(Number(row.pages)) ? Math.max(0, Math.trunc(Number(row.pages))) : undefined,
-      vocabulary: Number.isFinite(Number(row.vocabulary)) ? Math.max(0, Math.trunc(Number(row.vocabulary))) : undefined,
+      // 新目录只带生词数量；旧缓存或自定义目录仍是完整数组，两种都接受。
+      vocabulary: Array.isArray(row.vocabulary) ? row.vocabulary.length : Number.isFinite(Number(row.vocabulary)) ? Math.max(0, Math.trunc(Number(row.vocabulary))) : undefined,
       quiz: Number.isFinite(Number(row.quiz)) ? Math.max(0, Math.trunc(Number(row.quiz))) : undefined,
       wordCount: Number.isFinite(Number(row.wordCount)) ? Math.max(0, Math.trunc(Number(row.wordCount))) : undefined,
       minutes: Number.isFinite(Number(row.minutes)) ? Math.max(1, Math.trunc(Number(row.minutes))) : undefined,

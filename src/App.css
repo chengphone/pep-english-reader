@@ -320,3 +320,11 @@
 .route-loading { min-height: 50vh; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); }
 .route-spinner { width: 26px; height: 26px; border: 2px solid var(--line); border-top-color: var(--green); border-radius: 50%; animation: route-spin .8s linear infinite; }
 @keyframes route-spin { to { transform: rotate(360deg); } }
+
+/* 懒加载 chunk 失败时的恢复界面。 */
+.route-error { min-height: 50vh; display: grid; place-content: center; padding: 24px; }
+.route-error-card { max-width: 460px; padding: 28px 30px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-soft); text-align: center; }
+.route-error-card strong { display: block; margin-bottom: 8px; font-family: var(--font-display); font-size: 24px; color: var(--ink); }
+.route-error-card p { margin-bottom: 18px; color: var(--muted); }
+.route-error-action { border: 0; border-radius: 999px; padding: 10px 20px; background: var(--green); color: #fff; font-weight: 600; }
+.route-error-action:hover { background: var(--green-deep); }
