@@ -7,6 +7,7 @@ import { useLearningState } from '../reader/learningStore'
 import { deleteRecording, latestRecording, readRecording, saveRecording, type RecordingMeta } from '../reader/recordingStore'
 import { checkPictureOffline, savePictureOffline, type PictureOfflineState } from './offlinePicture'
 import { locateWord } from './wordLocator'
+import { zoomScrollTarget } from './zoomScroll'
 
 const MODE_INFO: Record<PictureMode, { label: string; hint: string; detail: string }> = {
   listen: { label: '听故事', hint: '整集原声', detail: '播放本集完整原声；有已对齐的逐句时间戳时自动高亮当前句，并可用“跟随”自动翻到该句所在跨页。' },
@@ -153,17 +154,16 @@ export default function PictureReader({
     setRecordError('')
   }, [book?.id, pageIndex])
 
-  // 放大后一次只显示跨页的一半。音频跟随切换句子或跨页时，把横向滚动
-  // 对准当前句所在的那一页，否则会出现“声音在右页、屏幕还停在左页”。
+  // 放大后一次只显示跨页的一部分。音频跟随切换句子或跨页时，把横向滚动
+  // 对准当前句的整体范围，否则跨中线的句子会被屏幕边缘裁掉一半。
   useEffect(() => {
     if (!zoomed) return
     const paper = paperRef.current
-    if (!paper) return
-    const sentence = page?.sentences.find(item => item.id === selectedId)
-    const rect = sentence?.rects[0]
-    if (!rect) return
-    const rightPage = rect[0] + rect[2] / 2 >= 0.5
-    const target = rightPage ? paper.scrollWidth - paper.clientWidth : 0
+    const canvas = paper?.querySelector<HTMLElement>('.pbook-canvas')
+    if (!paper || !canvas) return
+    const rects = page?.sentences.find(item => item.id === selectedId)?.rects ?? []
+    const target = zoomScrollTarget(rects, canvas.offsetWidth, canvas.offsetLeft, paper.clientWidth, paper.scrollWidth - paper.clientWidth)
+    if (target === undefined) return
     if (Math.abs(paper.scrollLeft - target) < 8) return
     paper.scrollTo({ left: target, behavior: 'smooth' })
   }, [zoomed, pageIndex, selectedId, book?.id])
