@@ -60,7 +60,7 @@ test('comprehension questions are used verbatim; missing ones fall back to vocab
 })
 
 test('Journey to the West arcs cover every episode exactly once', () => {
-  assert.equal(PICTURE_ARCS.length, 17)
+  assert.equal(PICTURE_ARCS.length, 18)
   const jtwArcs = PICTURE_ARCS.filter(arc => arc.series === 'Journey to the West')
   assert.equal(jtwArcs.length, 16)
   assert.deepEqual(jtwArcs.map(arc => [arc.from, arc.to]), [
@@ -88,6 +88,16 @@ test('Dino Buddies has its own 44-episode arc and does not collide with JTW epis
   assert.equal(arcForEntry({ series: 'Other Series', episode: 1 }), undefined)
   assert.equal(arcForEntry({ series: '', episode: 1 }), undefined)
   assert.equal(arcForEntry({ series: 'Dino Buddies', episode: undefined }), undefined)
+})
+
+test('Bat and Friends has its own 72-episode arc', () => {
+  const bat = PICTURE_ARCS.find(arc => arc.id === 'bat-and-friends')
+  assert.equal(bat?.series, 'Bat and Friends')
+  assert.deepEqual([bat?.from, bat?.to], [1, 72])
+  assert.equal(arcForEntry({ series: 'Bat and Friends', episode: 1 })?.id, 'bat-and-friends')
+  assert.equal(arcForEntry({ series: 'Bat and Friends', episode: 72 })?.id, 'bat-and-friends')
+  assert.equal(arcForEntry({ series: 'Bat and Friends', episode: 73 }), undefined)
+  assert.equal(arcForEntry({ series: 'Bat and Friends', episode: undefined }), undefined)
 })
 
 test('groupPictureEntries keeps catalog order and only returns filled arcs', () => {
