@@ -91,6 +91,9 @@
 @media (min-width: 981px) {
   .pbook-layout.is-panel-collapsed { grid-template-columns: minmax(0, 1fr); }
   .pbook-layout.is-panel-collapsed .pbook-panel { display: none; }
+  /* 放大 = 阅读区铺满窗口，整页按宽度完整显示，不产生横向裁切。 */
+  .pbook-layout.is-zoomed { max-width: none; padding-left: 10px; padding-right: 10px; }
+  .pbook-layout.is-zoomed .pbook-paper { padding: 4px; }
 }
 .pbook-stage { min-width: 0; }
 .pbook-paper {
@@ -103,8 +106,6 @@
   box-shadow: 0 28px 58px -44px rgba(9, 63, 46, .5);
 }
 .pbook-paper > .pbook-canvas { position: relative; }
-.pbook-paper.is-zoomed { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
-.pbook-paper.is-zoomed .pbook-canvas { width: 200%; }
 .pbook-canvas > img { display: block; width: 100%; height: auto; border-radius: 8px; user-select: none; }
 .pbook-hotspots { position: absolute; inset: 0; pointer-events: none; }
 .pbook-sentence-overlay { display: contents; }
@@ -320,6 +321,9 @@
   .pbook-panel { position: static; max-height: none; overflow: visible; }
   .pbook-paper { padding: 6px; }
   .pbook-layout { padding-bottom: 32px; }
+  /* 手机屏幕窄，放大保留 200% + 横向滚动，并跟随当前句对准滚动位置。 */
+  .pbook-paper.is-zoomed { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  .pbook-paper.is-zoomed .pbook-canvas { width: 200%; }
 }
 @media (max-width: 760px) {
   .pbook-topbar { min-height: 58px; gap: 9px; padding-left: 12px; padding-right: 12px; }

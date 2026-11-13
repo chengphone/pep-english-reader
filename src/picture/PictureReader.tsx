@@ -163,8 +163,9 @@ export default function PictureReader({
     setRecordError('')
   }, [book?.id, pageIndex])
 
-  // 放大后一次只显示跨页的一部分。音频跟随切换句子或跨页时，把横向滚动
-  // 对准当前句的整体范围，否则跨中线的句子会被屏幕边缘裁掉一半。
+  // 手机端放大后一次只显示跨页的一部分。音频跟随切换句子或跨页时，把横向
+  // 滚动对准当前句的整体范围，否则跨中线的句子会被屏幕边缘裁掉一半。
+  // 电脑端放大按整页宽度显示，不需要横向滚动，这里自然退化为无操作。
   useEffect(() => {
     if (!zoomed) return
     const paper = paperRef.current
@@ -574,7 +575,7 @@ export default function PictureReader({
       </button>
     </header>
 
-    <main className={`pbook-layout${panelOpen ? '' : ' is-panel-collapsed'}`}>
+    <main className={`pbook-layout${panelOpen ? '' : ' is-panel-collapsed'}${zoomed ? ' is-zoomed' : ''}`}>
       <section className="pbook-stage" aria-label="绘本阅读区">
         <div ref={paperRef} className={`pbook-paper${zoomed ? ' is-zoomed' : ''}`}>
           <div className="pbook-canvas">
