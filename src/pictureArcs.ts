@@ -1,8 +1,9 @@
 import type { PictureCatalogEntry } from './pictureBooks'
 
 // 绘本馆按“系列 + 集数”分篇章。Journey to the West 是 108 集的连续故事，
-// Dino Buddies 是 44 集、Bat and Friends 是 72 集独立的 Level 1 小故事；
-// 分组只影响阅读导航，不改变原始清单、音频映射或首页按系列聚合的逻辑。
+// Dino Buddies 是 44 集、Bat and Friends 和 Tire Town School 各 72 集
+// 独立的 Level 1 小故事；分组只影响阅读导航，不改变原始清单、音频映射
+// 或首页按系列聚合的逻辑。
 export type PictureArc = {
   id: string
   series: string
@@ -18,6 +19,7 @@ export type PictureArcGroup<T> = { arc: PictureArc; entries: T[] }
 const JTW = 'Journey to the West'
 const DINO = 'Dino Buddies'
 const BAT = 'Bat and Friends'
+const TIRE = 'Tire Town School'
 
 export const PICTURE_ARCS: PictureArc[] = [
   { id: 'monkey-king', series: JTW, volume: '第一卷', title: '猴王出世', description: '石猴出世，成为美猴王，拜师学艺。', from: 1, to: 7 },
@@ -38,6 +40,7 @@ export const PICTURE_ARCS: PictureArc[] = [
   { id: 'ling-shan', series: JTW, volume: '第十六卷', title: '灵山取经', description: '铜台府洗冤，灵山取得真经。', from: 99, to: 108 },
   { id: 'dino-buddies', series: DINO, volume: 'DINO', title: 'Dino Buddies', description: 'Rex、Sara、Sid 和 Tor 的 44 个日常小故事，Level 1。', from: 1, to: 44 },
   { id: 'bat-and-friends', series: BAT, volume: 'BAT', title: 'Bat and Friends', description: 'Bat、Cat、Cow、Pig 和 Dog 在农场的 72 个 Level 1 小故事。', from: 1, to: 72 },
+  { id: 'tire-town-school', series: TIRE, volume: 'TIRE', title: 'Tire Town School', description: 'Eddy、Poppy、Zippy 等汽车在 Tire Town School 的 72 个 Level 1 小故事。', from: 1, to: 72 },
 ]
 
 const OTHER_ARC: PictureArc = {

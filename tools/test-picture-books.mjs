@@ -60,7 +60,7 @@ test('comprehension questions are used verbatim; missing ones fall back to vocab
 })
 
 test('Journey to the West arcs cover every episode exactly once', () => {
-  assert.equal(PICTURE_ARCS.length, 18)
+  assert.equal(PICTURE_ARCS.length, 19)
   const jtwArcs = PICTURE_ARCS.filter(arc => arc.series === 'Journey to the West')
   assert.equal(jtwArcs.length, 16)
   assert.deepEqual(jtwArcs.map(arc => [arc.from, arc.to]), [
@@ -98,6 +98,16 @@ test('Bat and Friends has its own 72-episode arc', () => {
   assert.equal(arcForEntry({ series: 'Bat and Friends', episode: 72 })?.id, 'bat-and-friends')
   assert.equal(arcForEntry({ series: 'Bat and Friends', episode: 73 }), undefined)
   assert.equal(arcForEntry({ series: 'Bat and Friends', episode: undefined }), undefined)
+})
+
+test('Tire Town School has its own 72-episode arc', () => {
+  const tire = PICTURE_ARCS.find(arc => arc.id === 'tire-town-school')
+  assert.equal(tire?.series, 'Tire Town School')
+  assert.deepEqual([tire?.from, tire?.to], [1, 72])
+  assert.equal(arcForEntry({ series: 'Tire Town School', episode: 1 })?.id, 'tire-town-school')
+  assert.equal(arcForEntry({ series: 'Tire Town School', episode: 72 })?.id, 'tire-town-school')
+  assert.equal(arcForEntry({ series: 'Tire Town School', episode: 73 }), undefined)
+  assert.equal(arcForEntry({ series: 'Tire Town School', episode: undefined }), undefined)
 })
 
 test('groupPictureEntries keeps catalog order and only returns filled arcs', () => {
