@@ -219,35 +219,58 @@
   .site-tabbar {
     position: fixed;
     z-index: 55;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: max(12px, calc(env(safe-area-inset-left, 0px) + 8px));
+    right: max(12px, calc(env(safe-area-inset-right, 0px) + 8px));
+    bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 10px));
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    padding: 5px max(6px, env(safe-area-inset-left, 0px)) calc(5px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-right, 0px));
-    border-top: 1px solid #DAE7DF;
-    background: rgba(255, 255, 255, .96);
-    backdrop-filter: blur(16px);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+    padding: 5px;
+    border: 1px solid rgba(218, 231, 223, .9);
+    border-radius: 22px;
+    background: #FFFDF9;
+    box-shadow: 0 12px 34px -18px rgba(25, 58, 43, .4), 0 3px 10px rgba(25, 58, 43, .07);
+    backdrop-filter: blur(18px) saturate(1.15);
+    -webkit-backdrop-filter: blur(18px) saturate(1.15);
   }
   .site-tab {
-    min-height: 52px;
+    min-width: 0;
+    min-height: 58px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 2px;
+    padding: 2px 3px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 15px;
     background: transparent;
     color: #70847A;
     font: inherit;
-    font-size: 9.5px;
+    font-size: 10.5px;
     font-weight: 500;
+    line-height: 1.15;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .16s ease, background .16s ease, transform .16s ease;
   }
-  .site-tab.is-active { background: #E6F3EC; color: #0F6049; }
-  .site-tab svg { width: 19px; height: 19px; }
+  .site-tab:active { transform: scale(.97); }
+  .site-tab.is-active { color: #0F6049; font-weight: 600; }
+  .site-tab-icon {
+    width: 38px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 11px;
+    color: inherit;
+    transition: background .16s ease;
+  }
+  .site-tab.is-active .site-tab-icon { background: #E6F3EC; }
+  .site-tab-icon svg { width: 19px; height: 19px; }
+  .site-tab:focus-visible { outline: 2px solid rgba(15, 96, 73, .48); outline-offset: 1px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .site-search-panel, .site-profile-menu { animation: none; }
+  .site-tab { transition: none; }
+  .site-tab:active { transform: none; }
 }

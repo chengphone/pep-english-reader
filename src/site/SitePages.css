@@ -453,7 +453,7 @@ button.textbook-card:hover { transform: translateY(-2px); border-color: #B8CFC0;
 }
 @media (max-width: 760px) {
   .site-main { min-height: calc(100vh - 63px); }
-  .site-page { padding: 14px 16px 92px; }
+  .site-page { padding: 14px 16px calc(92px + env(safe-area-inset-bottom, 0px)); }
   .page-hero { min-height: 0; padding: 20px; border-radius: 18px; }
   .page-hero h1 { font-size: 30px; }
   .page-hero p { font-size: 12px; }

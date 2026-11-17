@@ -20,11 +20,11 @@ export type SearchTextbook = {
   keywords?: string
 }
 
-const NAV: { key: SiteSection; label: string; icon: ReactNode }[] = [
-  { key: 'home', label: '首页', icon: <Home size={18}/> },
-  { key: 'textbooks', label: '课本', icon: <BookOpen size={18}/> },
-  { key: 'library', label: '绘本馆', icon: <Images size={18}/> },
-  { key: 'practice', label: '练习', icon: <ClipboardCheck size={18}/> },
+const NAV: { key: SiteSection; label: string; mobileLabel: string; icon: ReactNode }[] = [
+  { key: 'home', label: '首页', mobileLabel: '首页', icon: <Home size={18}/> },
+  { key: 'textbooks', label: '课本', mobileLabel: '课本', icon: <BookOpen size={18}/> },
+  { key: 'library', label: '绘本馆', mobileLabel: '绘本', icon: <Images size={18}/> },
+  { key: 'practice', label: '练习', mobileLabel: '练习', icon: <ClipboardCheck size={18}/> },
 ]
 
 function matches(needle: string, values: (string | undefined)[]) {
@@ -162,7 +162,7 @@ export default function SiteHeader({
     </header>
     <nav className="site-tabbar" aria-label="移动端主导航">
       {NAV.map(item => <button key={item.key} type="button" className={`site-tab${current === item.key ? ' is-active' : ''}`} aria-current={current === item.key ? 'page' : undefined} onClick={() => go(item.key)}>
-        {item.icon}<span>{item.label}</span>
+        <span className="site-tab-icon">{item.icon}</span><span>{item.mobileLabel}</span>
       </button>)}
     </nav>
   </>
