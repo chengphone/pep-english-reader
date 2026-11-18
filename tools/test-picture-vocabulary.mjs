@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { parseVocabulary } from './build-picture-books.mjs'
-import { locateWord, sentenceMatchesWord } from '../src/picture/wordLocator.ts'
+import { locateWord, sentenceMatchesWord, wordForms } from '../src/picture/wordLocator.ts'
 
 const layout = `
 Journey to the West 6: Test Story
@@ -51,6 +51,18 @@ test('phrases match pronouns, inserted objects and contractions', () => {
 test('words that never appear in the story are reported as missing', () => {
   assert.equal(sentenceMatchesWord('The rock split open.', 'journey'), false)
   assert.equal(sentenceMatchesWord('The sheep ran across the field.', 'ship'), false)
+})
+
+test('dictionary lookups ignore inherited object keys', () => {
+  // 自定义绘本的词表可以出现任意英文词条。IRREGULAR['constructor'] 会命中
+  // Object 构造函数，for...of 随即抛 "function is not iterable"。
+  assert.doesNotThrow(() => wordForms('constructor'))
+  assert(wordForms('constructor').has('constructor'))
+  assert.equal(sentenceMatchesWord('The constructor is here.', 'constructor'), true)
+  assert.equal(sentenceMatchesWord('Use a builder instead.', 'constructor'), false)
+  // PLACEHOLDERS 同样不能在 constructor 上命中原型。
+  assert.equal(sentenceMatchesWord('The constructor is here.', 'hasOwnProperty'), false)
+  assert.equal(sentenceMatchesWord('We talked about toString today.', 'toString'), true)
 })
 
 test('locateWord returns the first matching sentence in reading order', () => {

@@ -15,11 +15,14 @@ const entries: Record<string,string> = {
  'bread':'面包','juice':'果汁','egg':'鸡蛋','milk':'牛奶','water':'水','cake':'蛋糕','fish':'鱼','rice':'米饭','one':'一','two':'二','three':'三','four':'四','five':'五','six':'六','seven':'七','eight':'八','nine':'九','ten':'十','brother':'兄弟','sister':'姐妹','mother':'母亲','father':'父亲','friend':'朋友',
 }
 const names:Record<string,string>={jones:'琼斯',green:'格林',white:'怀特',brown:'布朗',black:'布莱克',mike:'迈克',john:'约翰',sarah:'萨拉',amy:'埃米',chen:'陈',binbin:'彬彬',zoom:'祖姆',zip:'吉普',lily:'莉莉',wu:'吴'}
+// 查表必须只认表里自己的词条：直接读 entries[key] 会把 constructor、
+// toString、__proto__ 这类原型属性当成命中，把函数/对象返回给 React 渲染。
+const own=(table:Record<string,string>,key:string):string|undefined=>Object.prototype.hasOwnProperty.call(table,key)?table[key]:undefined
 function distance(a:string,b:string){let row=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){const next=[i];for(let j=1;j<=b.length;j++)next[j]=Math.min(next[j-1]+1,row[j]+1,row[j-1]+(a[i-1]===b[j-1]?0:1));row=next}return row[b.length]}
 export function vocabularySpellingHint(english:string,chinese:string):string|undefined{const meaning=chinese.match(/\p{Script=Han}+/u)?.[0];if(!meaning)return;const matches=Object.entries(entries).filter(([word,translation])=>/^[a-z]{3,}$/.test(word)&&word[0]===english[0]?.toLowerCase()&&distance(word,english.toLowerCase())<=2&&translation.split(/[；;，,、]/).some(part=>{const han=part.match(/\p{Script=Han}+/u)?.[0];return han&&(Math.min(han.length,meaning.length)<2?han===meaning:distance(han,meaning)<=1)}));return matches.length===1?matches[0][0]:undefined}
 function normalize(s:string){return s.toLowerCase().replace(/[’‘]/g,"'").replace(/['.,!?，。！？:;]/g,'').replace(/\s+/g,' ').trim()}
-function person(s:string):string|undefined {const key=normalize(s);if(names[key])return names[key];const m=key.match(/^(mr|mrs|miss|ms)\s+(.+)$/);if(m&&names[m[2]])return names[m[2]]+({mr:'先生',mrs:'夫人',miss:'小姐',ms:'女士'}[m[1]]);return undefined}
-export function localTranslation(text:string):string|undefined {const key=normalize(text);if(entries[key])return entries[key];const who=person(key);if(who)return who;let m=key.match(/^(good morning|good afternoon|good evening|goodbye|bye|hello|hi) (.+)$/);if(m){const p=person(m[2]);if(p)return `${entries[m[1]].replace(/[！。]$/,'')}，${p}！`}
+function person(s:string):string|undefined {const key=normalize(s);const named=own(names,key);if(named)return named;const m=key.match(/^(mr|mrs|miss|ms)\s+(.+)$/);if(!m)return undefined;const titled=own(names,m[2]);return titled?titled+({mr:'先生',mrs:'夫人',miss:'小姐',ms:'女士'}[m[1]]):undefined}
+export function localTranslation(text:string):string|undefined {const key=normalize(text);const direct=own(entries,key);if(direct)return direct;const who=person(key);if(who)return who;let m=key.match(/^(good morning|good afternoon|good evening|goodbye|bye|hello|hi) (.+)$/);if(m){const p=person(m[2]);if(p)return `${entries[m[1]].replace(/[！。]$/,'')}，${p}！`}
  m=key.match(/^(hello|hi) (?:im|i am) (.+)$/);if(m){const p=person(m[2]);if(p)return `${m[1]==='hello'?'你好':'嗨'}，我是${p}。`}
  m=key.match(/^(this is|im|i am|my name is|my names) (.+)$/);if(m){const p=person(m[2]);if(p)return (m[1]==='this is'?'这位是':m[1].startsWith('my name')?'我的名字是':'我是')+p+'。'}
- m=key.match(/^unit (\w+)$/);if(m&&entries[m[1]])return '第'+entries[m[1]]+'单元';return undefined}
+ m=key.match(/^unit (\w+)$/);if(m&&own(entries,m[1]))return '第'+own(entries,m[1])+'单元';return undefined}

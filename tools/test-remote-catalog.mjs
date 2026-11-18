@@ -122,6 +122,52 @@ test('resources with invalid durations are dropped from a remote manifest', asyn
   assert.equal(book.manifest.pages[0].resources[0].duration, 12.5)
 })
 
+test('non-string manifest titles fall back to the catalog title', async () => {
+  installBase()
+  const page = { page: 1, image: 'page.jpg', items: [] }
+  const fetchTitle = title => { globalThis.fetch = async () => jsonResponse({ schemaVersion: 1, bookId: 'demo', title, publisherId: 'test', pages: [page] }) }
+  // 标题会进入阅读器、统计弹窗和 document.title；数字或对象会让 .trim() 抛错。
+  for (const title of [123, { bad: true }, '   ', null]) {
+    fetchTitle(title)
+    const book = await loadRemoteBook({ id: 'demo', title: 'Demo', manifest: 'https://example.test/book.json' })
+    assert.equal(book.manifest.title, 'Demo')
+  }
+  fetchTitle('  Demo Book  ')
+  const book = await loadRemoteBook({ id: 'demo', title: 'Demo', manifest: 'https://example.test/book.json' })
+  assert.equal(book.manifest.title, 'Demo Book')
+})
+
+test('non-string display fields are dropped from remote items and pages', async () => {
+  installBase()
+  const items = [
+    { id: 'bad-object', text: 'apple', order: 0, rects: [], translation: { zh: '苹果' } },
+    { id: 'bad-number', text: 'pear', order: 1, rects: [], translation: 12 },
+    { id: 'bad-array', text: 'peach', order: 2, rects: [], translation: ['桃'] },
+    { id: 'bad-audio', text: 'grape', order: 3, rects: [], audio: { src: 'x.mp3' } },
+    { id: 'ok', text: 'banana', order: 4, rects: [], translation: '香蕉' },
+    { id: 'fallback', text: 'orange', order: 5, rects: [], translation: { zh: '橙子' } },
+  ]
+  globalThis.fetch = async () => jsonResponse({ schemaVersion: 1, bookId: 'demo', title: 'Demo', publisherId: 'test', pages: [{ page: 1, image: 'page.jpg', printedPage: { zh: '封二' }, items }] })
+  assert.equal(writeRemoteTranslation('demo', 'fallback', '本地释义'), true)
+  const book = await loadRemoteBook({ id: 'demo', title: 'Demo', manifest: 'https://example.test/book.json' })
+  // 书上页码会直接进阅读器顶栏；对象值必须退回物理页码。
+  assert.equal(book.manifest.pages[0].printedPage, undefined)
+  const byId = new Map(book.manifest.pages[0].items.map(item => [item.id, item]))
+  // 释义会直接进入 React 子节点；对象会让单词列表和复习卡渲染时抛错。
+  assert.equal(byId.get('bad-object').translation, undefined)
+  assert.equal(byId.get('bad-number').translation, undefined)
+  assert.equal(byId.get('bad-array').translation, undefined)
+  // 点读音源会进入 Audio 构造器；非字符串不能留在条目里。
+  assert.equal(byId.get('bad-audio').audio, undefined)
+  assert.equal(byId.get('ok').translation, '香蕉')
+  // 清单里的坏释义不能遮住管理员在本机补充的翻译。
+  assert.equal(byId.get('fallback').translation, '本地释义')
+  // 合法的数字页码保持不变。
+  globalThis.fetch = async () => jsonResponse({ schemaVersion: 1, bookId: 'demo', title: 'Demo', publisherId: 'test', pages: [{ page: 1, image: 'page.jpg', printedPage: 42, items: [] }] })
+  const numbered = await loadRemoteBook({ id: 'demo', title: 'Demo', manifest: 'https://example.test/book.json' })
+  assert.equal(numbered.manifest.pages[0].printedPage, 42)
+})
+
 test('a failed default catalog reports an error instead of pretending the library is empty', async () => {
   installBase()
   globalThis.fetch = async () => { throw new TypeError('Failed to fetch') }

@@ -20,7 +20,7 @@ async function loadGlossary(book:string){
     const db=request.result
     try{
      const r=db.transaction('units').objectStore('units').getAll()
-     r.onsuccess=()=>{const glossary:Record<string,string>={};for(const unit of r.result){if(unit.book!==book)continue;for(const word of unit.words??[])if(word.english&&word.meaning)glossary[translationKey(word.english)]=word.meaning}db.close();finish(glossary)}
+     r.onsuccess=()=>{const glossary:Record<string,string>=Object.create(null);for(const unit of r.result){if(!unit||unit.book!==book)continue;for(const word of unit.words??[])if(word&&typeof word.english==='string'&&typeof word.meaning==='string')glossary[translationKey(word.english)]=word.meaning}db.close();finish(glossary)}
      r.onerror=()=>{db.close();finish({})}
     }catch{db.close();finish({})}
    }

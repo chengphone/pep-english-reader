@@ -148,7 +148,7 @@ export default function App() {
       if (!mf) throw new Error('ZIP 根目录缺少 book.json')
       // 区间字段随清单一起导入；老清单没有这两个字段时保持整段播放。
       const manifest = normalizeReaderManifest(JSON.parse(strFromU8(mf)) as Manifest)
-      if (!manifest.bookId || !manifest.pages?.length) throw new Error('教材包结构不正确：book.json 需要 bookId 和 pages')
+      if (!manifest.bookId || !Array.isArray(manifest.pages) || !manifest.pages.length || !manifest.pages.every(page => page && typeof page === 'object' && Array.isArray(page.items))) throw new Error('教材包结构不正确：book.json 需要 bookId 和 pages，且每页都要包含 items 热区列表')
       const assets: Record<string,Blob> = {}
       for (const [path, bytes] of Object.entries(z)) if (!path.endsWith('/')) assets[path] = new Blob([bytes], { type: mimeType(path) })
       const book = { id: manifest.bookId, manifest, assets }; await putBook(book); setBooks(await allBooks()); setActive(book); setOnline(false); setPageIdx(0); notify('已导入教材，可离线点读','success')

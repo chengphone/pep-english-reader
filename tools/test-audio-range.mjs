@@ -91,6 +91,26 @@ const invalid=structuredClone(oldManifest);invalid.pages[0].items[0].audioStart=
 assert.throws(()=>normalizeReaderManifest(invalid))
 assert.throws(()=>normalizeReaderManifest({...oldManifest,pages:[{...oldManifest.pages[0],items:[{...oldManifest.pages[0].items[0],audioEnd:-1}]}]}))
 
+// 损坏的条目和热区坐标不能带进阅读页：渲染时会直接解构 rects 并计算百分比。
+{
+ const dirty=structuredClone(oldManifest)
+ dirty.pages[0].items=[
+  ...dirty.pages[0].items,
+  null,
+  'broken',
+  [],
+  {id:'i2',text:'Junk',rects:[[0,0,1],[0,0,1,1],['0','0','1','1'],[0,0,Infinity,1],[0.1,0.2,0.3,0.4]]},
+  {id:'i3',text:'NoRects'},
+ ]
+ const items=normalizeReaderManifest(dirty).pages[0].items
+ assert.deepEqual(items.map(item=>item.id),['i1','i2','i3'])
+ assert.deepEqual(items[0].rects,[[0,0,1,1]])
+ assert.deepEqual(items[1].rects,[[0,0,1,1],[0.1,0.2,0.3,0.4]])
+ assert.deepEqual(items[2].rects,[])
+ // 非数组的 items 原样保留，由导入流程整体拒绝，而不是在打开时崩溃。
+ assert.equal(normalizeReaderManifest({pages:[{page:1,items:'nope'}]}).pages[0].items,'nope')
+}
+
 // 保存/导出前清理手填区间：只保留播放器真正会用的值，其余字段原样。
 {
  const item={id:'i1',text:'Hello',order:1,rects:[[0,0,1,1]],audio:'audio/1.mp3'}

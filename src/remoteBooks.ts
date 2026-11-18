@@ -141,6 +141,9 @@ export async function loadRemoteBook(entry: RemoteBookEntry): Promise<LocalBook>
   })
   // 路由和书架都以目录里的 id 为准，清单里的 bookId 只作为数据字段保留。
   const bookId = entry.id
+  // 标题会进入阅读器、统计弹窗和 document.title；清单里写成数字或对象时
+  // `.trim()` 会直接抛错，整本教材打不开。坏标题退回目录里的条目名。
+  const title = typeof manifest.title === 'string' && manifest.title.trim() ? manifest.title.trim() : entry.title
   const pages: ReaderPage[] = []
   for (const page of manifest.pages) {
     const image = safeUrl(page.image, manifestUrl)
@@ -173,7 +176,7 @@ export async function loadRemoteBook(entry: RemoteBookEntry): Promise<LocalBook>
   if (!pages.length) throw new Error('在线教材清单缺少有效页面，无法打开。')
   return {
     id: bookId,
-    manifest: { ...manifest, bookId, title: manifest.title || entry.title, pages },
+    manifest: { ...manifest, bookId, title, pages },
     assets: {},
     remote: true,
     manifestUrl: manifestUrl.href,

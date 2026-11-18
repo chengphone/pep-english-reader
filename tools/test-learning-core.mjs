@@ -226,6 +226,45 @@ test('state normalization drops unknown profiles and malformed rows', () => {
   assert.equal(normalized.lastPages.b.book, 4)
 })
 
+test('state normalization keeps hand-edited infinities out of counters and stats', () => {
+  // localStorage 可以被手工改写；JSON 里的 1e999 会解析成 Infinity，
+  // 旧实现会把它原样写进学习计数，统计页随后显示 NaN% 正确率。
+  const normalized = normalizeState(JSON.parse(`{
+    "version": 1,
+    "words": { "a": {
+      "inf": {"bookId":"book","itemId":"inf","text":"apple","reps":1e999,"correct":1e999,"wrong":1e999,"streak":1e999,"interval":1e999,"lastSeen":1e999,"nextReview":1e999,"page":1e999},
+      "over": {"bookId":"book","itemId":"over","text":"ant","reps":1,"correct":9,"wrong":4},
+      "ok": {"bookId":"book","itemId":"ok","text":"cat","reps":2,"correct":2,"wrong":0}
+    }},
+    "bookmarks": { "a": [
+      {"id":"bad","bookId":"book","page":1e999,"label":"x","createdAt":1e999},
+      {"id":"good","bookId":"book","page":3,"label":"3","createdAt":1e999}
+    ]},
+    "events": { "a": [{"id":"e","bookId":"book","text":"apple","kind":"review","correct":true,"at":1e999,"page":1e999}] },
+    "days": { "a": { "2026-11-12": {"seconds":1e999,"correct":1e999,"wrong":1e999,"words":1e999} } }
+  }`))
+  const inf = normalized.words.a.inf
+  for (const key of ['reps', 'correct', 'wrong', 'streak', 'interval', 'lastSeen', 'nextReview', 'page']) {
+    assert.ok(Number.isFinite(inf[key]), `${key} should be finite`)
+  }
+  assert.equal(inf.reps, 0)
+  // 作答次数不可能超过总次数；手改出更大的值时按总次数收敛。
+  assert.equal(normalized.words.a.over.correct, 1)
+  assert.equal(normalized.words.a.over.wrong, 1)
+  // 页码为 Infinity 的书签本来就会被过滤；合法书签的坏时间戳按 0 处理。
+  assert.deepEqual(normalized.bookmarks.a.map(row => row.id), ['good'])
+  assert.equal(normalized.bookmarks.a[0].createdAt, 0)
+  assert.equal(normalized.events.a[0].at, 0)
+  assert.equal(normalized.events.a[0].page, 0)
+  const day = normalized.days.a['2026-11-12']
+  assert.deepEqual([day.seconds, day.correct, day.wrong, day.words], [0, 0, 0, 0])
+  const summary = summarize(normalized.words.a, normalized.days.a, new Date('2026-11-12T12:00:00').getTime())
+  assert.ok(Number.isFinite(summary.accuracy))
+  assert.ok(Number.isFinite(summary.totalSeconds))
+  assert.equal(summary.totalSeconds, 0)
+  assert.equal(summary.accuracy, 75)
+})
+
 test('study seconds and quiz events land on the same local day', () => {
   const now = new Date('2026-11-12T23:30:00').getTime()
   const state = emptyState()

@@ -15,14 +15,28 @@ export function normalizeAudioRange(start:unknown,end:unknown):{audioStart:numbe
  const from=start??0
  return end>from?{audioStart:from,audioEnd:end}:undefined
 }
-// 导入 ZIP 清单时调用：只规范 items 里的可选音频区间，不改动其他字段。
-// 无效区间会退回整段播放；字段类型错误则抛出，由导入流程提示用户。
+// 热区坐标决定阅读页能把英文画到哪里；只有四个有限数字组成的矩形可用。
+// 在线教材清单早已这样过滤，本地 ZIP 导入也走同一套规则。
+const isRect=(value:unknown):value is [number,number,number,number]=>Array.isArray(value)&&value.length===4&&value.every(number=>typeof number==='number'&&Number.isFinite(number))
+// 导入 ZIP 清单时调用：规范 items 的热区坐标、可选文本字段和音频区间，不改动其他字段。
+// 损坏的条目或坐标会让阅读页在渲染时崩溃，这里按“没有热区”处理；
+// 无效区间会退回整段播放；区间字段类型错误则抛出，由导入流程提示用户。
 export function normalizeReaderManifest<T>(value:T):T{
  if(!object(value)||!Array.isArray(value.pages))return value
  for(const page of value.pages){
-  if(!object(page)||!Array.isArray(page.items))continue
+  if(!object(page))continue
+  // 书上页码会直接显示在阅读器顶栏和“第 N 页”提示里；对象或数组会让 JSX
+  // 渲染抛错。非有限数字一律按未填写处理，退回物理页码。
+  if(page.printedPage!==undefined&&!(typeof page.printedPage==='number'&&Number.isFinite(page.printedPage)))delete page.printedPage
+  if(!Array.isArray(page.items))continue
+  // null、字符串或数组条目没有可用的 id / rects，保留下来只会在渲染时抛错。
+  page.items=page.items.filter((item:unknown)=>object(item))
   for(const item of page.items){
-   if(!object(item))continue
+   item.rects=Array.isArray(item.rects)?item.rects.filter(isRect):[]
+   // 释义和点读音源会直接进入 React 子节点与 Audio 构造器；对象、数组或数字
+   // 会让单词列表和复习卡在渲染时抛错。非字符串一律按未填写处理。
+   if(item.translation!==undefined&&typeof item.translation!=='string')delete item.translation
+   if(item.audio!==undefined&&typeof item.audio!=='string')delete item.audio
    const range=normalizeAudioRange(item.audioStart,item.audioEnd)
    if(range){item.audioStart=range.audioStart;item.audioEnd=range.audioEnd}
    else{delete item.audioStart;delete item.audioEnd}

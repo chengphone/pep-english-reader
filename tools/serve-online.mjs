@@ -153,7 +153,14 @@ function sendFile(request, response, path, { isBook = false, cors = ALLOW_CORS }
     return
   }
   const stream = createReadStream(path, { start, end })
-  stream.on('error', () => { if (!response.headersSent) response.writeHead(500); response.destroy() })
+  // 文件存在但打不开（权限、磁盘错误）时，创建流会在写出响应头之后失败。
+  // 直接 destroy() 会让浏览器收到 ERR_EMPTY_RESPONSE，看起来像网络故障；
+  // 头还没发出时补一个可读的 500，已经开始发送时才只能中断连接。
+  stream.on('error', () => {
+    if (response.headersSent) { response.destroy(); return }
+    response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8', ...(cors ? CORS : {}) })
+    response.end('Server error')
+  })
   stream.pipe(response)
 }
 

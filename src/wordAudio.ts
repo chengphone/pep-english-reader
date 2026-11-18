@@ -164,7 +164,9 @@ export async function importWordAudio(files: File[], texts: string[]) {
       const manifest = JSON.parse(strFromU8(entries['manifest.json']))
       if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.items) || manifest.items.length > 5000) throw new Error('音频包清单格式不正确。')
       for (const item of manifest.items) {
-        if (typeof item.text !== 'string' || typeof item.file !== 'string' || !entries[item.file]) throw new Error('音频包存在缺失文件或无效词条。')
+        // JSON 数组里可以夹着 null / 字符串；直接读 item.text 会抛 TypeError，
+        // 用户只会看到浏览器英文报错，而不是这条可读的导入提示。
+        if (!item || typeof item !== 'object' || typeof item.text !== 'string' || typeof item.file !== 'string' || !entries[item.file]) throw new Error('音频包存在缺失文件或无效词条。')
         add(item.text, entries[item.file], typeof manifest.voice === 'string' ? manifest.voice : '导入音频')
       }
     } else {

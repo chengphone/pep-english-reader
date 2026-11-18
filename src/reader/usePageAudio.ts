@@ -28,6 +28,12 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
 }
 
+// 清单里的 startAt 可能来自旧版本或手工编辑；Infinity / NaN 会让播放条
+// 显示 NaN，也不能直接赋给 currentTime。
+function startOffset(resource: ReaderResource) {
+  return Number.isFinite(resource.startAt) ? Math.max(0, resource.startAt!) : 0
+}
+
 // 页面打开后预取本页第一段音频的完整文件，让第一次点击播放直接命中
 // Service Worker / 浏览器缓存；不预取视频，也不在省流模式或 2G 下预取。
 const preloadedAudio = new Set<string>()
@@ -94,7 +100,7 @@ export function usePageAudio(page: ReaderPage | undefined): PageAudioController 
 
   const start = useCallback((resource: ReaderResource) => {
     release()
-    const from = Math.max(0, resource.startAt ?? 0)
+    const from = startOffset(resource)
     const player = new Audio(resource.src)
     player.preload = 'auto'
     player.volume = volumeRef.current
@@ -158,7 +164,7 @@ export function usePageAudio(page: ReaderPage | undefined): PageAudioController 
     if (player && active.current?.id === resource.id && active.current.src === resource.src) {
       if (player.paused) {
         if (player.ended) {
-          try { player.currentTime = Math.max(0, resource.startAt ?? 0) } catch { /* 忽略 */ }
+          try { player.currentTime = startOffset(resource) } catch { /* 忽略 */ }
         }
         void player.play().then(() => {
           if (audio.current === player) setPlaying(true)
@@ -238,7 +244,7 @@ export function usePageAudio(page: ReaderPage | undefined): PageAudioController 
     }
     active.current = match
     setActiveResourceState(match)
-    startAt.current = Math.max(0, match.startAt ?? 0)
+    startAt.current = startOffset(match)
   }, [page, stop])
 
   useEffect(() => () => release(), [release])

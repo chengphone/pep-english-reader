@@ -127,6 +127,13 @@ for (const [base, forms] of Object.entries(IRREGULAR)) {
   for (const form of forms) if (form !== base) BASE_BY_FORM.set(form, base)
 }
 
+// 词表可以被自定义绘本带入任意英文词条。直接查 IRREGULAR[token] 时，
+// constructor / toString 这类名字会命中 Object 原型上的函数，for...of 随即抛错；
+// 查表只认表里自己的键。
+function own<T>(table: Record<string, T>, key: string): T | undefined {
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined
+}
+
 const PLACEHOLDERS: Record<string, 'pronoun' | 'any'> = {
   "one's": 'pronoun',
   oneself: 'pronoun',
@@ -210,7 +217,7 @@ export function wordForms(word: string): Set<string> {
     if (!token || seen.has(token)) return
     seen.add(token)
     result.add(token)
-    for (const form of IRREGULAR[token] ?? []) result.add(form)
+    for (const form of own(IRREGULAR, token) ?? []) result.add(form)
     const base = BASE_BY_FORM.get(token)
     if (base) visit(base)
     addRegularForms(result, token)
@@ -241,7 +248,7 @@ function parseHeadword(word: string): HeadPart[] {
   for (const raw of cleaned.split(/[\s\-–—]+/)) {
     const token = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, '')
     if (!token) continue
-    const placeholder = PLACEHOLDERS[token]
+    const placeholder = own(PLACEHOLDERS, token)
     if (placeholder) parts.push({ placeholder })
     else if (!ARTICLES.has(token)) parts.push({ variants: wordForms(token) })
   }

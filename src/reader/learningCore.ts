@@ -93,6 +93,14 @@ export function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
 }
 
+// 学习状态存在 localStorage，可以被手工改写或由旧版本写入。JSON 里的
+// 1e999 会解析成 Infinity，Number(value) || 0 拦不住它；一旦进入计数，
+// 正确率、学习时长和页码就会显示成 NaN / Infinity。
+function finiteNumber(value: unknown) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : 0
+}
+
 export function dayKey(time = Date.now()) {
   const date = new Date(time)
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -139,21 +147,21 @@ export function normalizeState(value: unknown): LearningState {
       if (!value || typeof value !== 'object') continue
       const row = value as Partial<WordRecord>
       if (typeof row.bookId !== 'string' || typeof row.itemId !== 'string' || typeof row.text !== 'string') continue
-      const reps = Math.max(0, Number(row.reps) || 0)
+      const reps = Math.max(0, finiteNumber(row.reps))
       out[key] = {
         bookId: row.bookId,
         itemId: row.itemId,
-        page: Math.max(0, Number(row.page) || 0),
+        page: Math.max(0, finiteNumber(row.page)),
         text: row.text,
         translation: typeof row.translation === 'string' ? row.translation : undefined,
         reps,
-        correct: Math.max(0, Number(row.correct) || 0),
-        wrong: Math.max(0, Number(row.wrong) || 0),
-        streak: Math.max(0, Number(row.streak) || 0),
+        correct: Math.min(reps, Math.max(0, finiteNumber(row.correct))),
+        wrong: Math.min(reps, Math.max(0, finiteNumber(row.wrong))),
+        streak: Math.max(0, finiteNumber(row.streak)),
         ease: clamp(Number(row.ease) || 2.3, 1.3, 2.8),
-        interval: Math.max(0, Number(row.interval) || 0),
-        lastSeen: Math.max(0, Number(row.lastSeen) || 0),
-        nextReview: Math.max(0, Number(row.nextReview) || 0),
+        interval: Math.max(0, finiteNumber(row.interval)),
+        lastSeen: Math.max(0, finiteNumber(row.lastSeen)),
+        nextReview: Math.max(0, finiteNumber(row.nextReview)),
         bestScore: Number.isFinite(row.bestScore) ? clamp(Number(row.bestScore), 0, 100) : undefined,
       }
     }
@@ -172,7 +180,7 @@ export function normalizeState(value: unknown): LearningState {
         bookId: item.bookId,
         page: Math.max(0, Math.trunc(page)),
         label: typeof item.label === 'string' && item.label.trim() ? item.label.trim() : String(Math.trunc(page) + 1),
-        createdAt: Math.max(0, Number(item.createdAt) || 0),
+        createdAt: Math.max(0, finiteNumber(item.createdAt)),
       }]
     })
   }
@@ -186,9 +194,9 @@ export function normalizeState(value: unknown): LearningState {
       const kind: QuizKind = ['listen', 'meaning', 'spell', 'review', 'recording', 'dialogue'].includes(String(item.kind)) ? item.kind as QuizKind : 'review'
       return [{
         id: item.id,
-        at: Math.max(0, Number(item.at) || 0),
+        at: Math.max(0, finiteNumber(item.at)),
         bookId: item.bookId,
-        page: Math.max(0, Number(item.page) || 0),
+        page: Math.max(0, finiteNumber(item.page)),
         itemId: typeof item.itemId === 'string' ? item.itemId : '',
         text: item.text,
         kind,
@@ -206,10 +214,10 @@ export function normalizeState(value: unknown): LearningState {
       const row = value as Partial<DayStat>
       out[key] = {
         day: key,
-        seconds: Math.max(0, Number(row.seconds) || 0),
-        correct: Math.max(0, Number(row.correct) || 0),
-        wrong: Math.max(0, Number(row.wrong) || 0),
-        words: Math.max(0, Number(row.words) || 0),
+        seconds: Math.max(0, finiteNumber(row.seconds)),
+        correct: Math.max(0, finiteNumber(row.correct)),
+        wrong: Math.max(0, finiteNumber(row.wrong)),
+        words: Math.max(0, finiteNumber(row.words)),
       }
     }
     return out
@@ -453,6 +461,8 @@ export function summarize(records: Record<string, WordRecord>, days: Record<stri
   const rows = Object.values(records)
   const correct = rows.reduce((sum, row) => sum + row.correct, 0)
   const wrong = rows.reduce((sum, row) => sum + row.wrong, 0)
+  // 手工改写的数据可能让计数相加溢出成 Infinity；正确率不能再变成 NaN。
+  const answered = correct + wrong
   const totalSeconds = Object.values(days).reduce((sum, row) => sum + row.seconds, 0)
   const week = weekBars(days, now)
   return {
@@ -463,7 +473,7 @@ export function summarize(records: Record<string, WordRecord>, days: Record<stri
     dueWords: rows.filter(row => row.reps > 0 && row.nextReview <= now).length,
     correct,
     wrong,
-    accuracy: correct + wrong ? Math.round((correct / (correct + wrong)) * 100) : 0,
+    accuracy: Number.isFinite(answered) && answered > 0 ? Math.round((correct / answered) * 100) : 0,
     streak: streakDays(days, now),
     week,
   }
