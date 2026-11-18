@@ -51,7 +51,7 @@ export default function OfflineDialog({ book, onClose }: Props) {
     const abort = new AbortController()
     controller.current = abort
     try {
-      const result = await cacheBook(book, setProgress, abort.signal)
+      const result = await cacheBook(book, setProgress, abort.signal, { refreshExisting: Boolean(meta) })
       setMeta(result.meta)
       setNotice(result.failures.length ? `已保存大部分资源，但有 ${result.failures.length} 个文件失败；联网后可以再点一次补齐。` : '已保存到本机，断网后也能打开这本书。')
       setStorage(await estimateStorage())

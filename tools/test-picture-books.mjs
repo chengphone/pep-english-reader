@@ -368,6 +368,25 @@ test('corrupt picture progress entries are ignored and latest valid entry wins',
   }
 })
 
+test('a picture progress store with a prototype-mutating book id keeps the record as data', () => {
+  const store = new Map()
+  const original = globalThis.localStorage
+  globalThis.localStorage = {
+    getItem: key => store.get(key) ?? null,
+    setItem: (key, value) => { store.set(key, String(value)) },
+    removeItem: key => { store.delete(key) },
+  }
+  try {
+    store.set('pep:picture-progress:v1', `{"a":{"__proto__":{"pageIndex":2,"mode":"self","updatedAt":7,"completedPages":[1]}}}`)
+    assert.deepEqual(readPictureProgress('__proto__', 'a'), { pageIndex: 2, mode: 'self', updatedAt: 7, completedPages: [1] })
+    assert.equal(latestPictureProgress('a')?.bookId, '__proto__')
+    assert.equal(({}).pageIndex, undefined)
+  } finally {
+    if (original === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = original
+  }
+})
+
 test('corrupt completion data can be read and then safely autosaved', () => {
   const store = new Map()
   const original = globalThis.localStorage
@@ -418,7 +437,7 @@ test('picture manifest skips unusable pages and falls back to default media URLs
       {
         image: 'pages/001.jpg',
         sentences: [
-          { text: 'Hello', rects: [[0, 0, 0.5, 0.2], 'bad'], start: '1.2', end: '2.5' },
+          { text: 'Hello', rects: [[0, 0, 0.5, 0.2], 'bad', [0.8, 0.1, 0.2, 0.3], [-0.1, 0, 0.2, 0.3], [0.1, 0.1, 1.2, 0.3]], start: '1.2', end: '2.5' },
           { text: 'No timing: null', rects: [], start: null, end: null },
           { text: 'No timing: empty', rects: [], start: '', end: '' },
           { text: 'No timing: false', rects: [], start: false, end: false },

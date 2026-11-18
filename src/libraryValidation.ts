@@ -1,4 +1,5 @@
 import type { VocabularyUnit } from './vocabularyExtraction'
+import type { ReaderResource } from './reader/types'
 import { audioKey } from './audioKey.ts'
 export type AudioLibraryItem={text:string;file:string;voice?:string;sha256?:string}
 export type AudioLibrary={schemaVersion:1;revision?:number;voice?:string;items:AudioLibraryItem[]}
@@ -17,20 +18,41 @@ export function normalizeAudioRange(start:unknown,end:unknown):{audioStart:numbe
 }
 // 热区坐标决定阅读页能把英文画到哪里；只有四个有限数字组成的矩形可用。
 // 在线教材清单早已这样过滤，本地 ZIP 导入也走同一套规则。
-const isRect=(value:unknown):value is [number,number,number,number]=>Array.isArray(value)&&value.length===4&&value.every(number=>typeof number==='number'&&Number.isFinite(number))
+const isRect=(value:unknown):value is [number,number,number,number]=>Array.isArray(value)&&value.length===4&&value.every(number=>typeof number==='number'&&Number.isFinite(number))&&value[0]>=0&&value[1]>=0&&value[2]<=1&&value[3]<=1&&value[2]>value[0]&&value[3]>value[1]
+// 页面资源会进入 usePageAudio 的数组方法、播放器和资源面板；字符串或 [null]
+// 会让 filter/kinds 读取直接抛错。与在线教材一样只保留有 id、kind 和 src 的对象。
+const isResource=(value:unknown):value is ReaderResource=>object(value)&&typeof value.id==='string'&&!!value.id.trim()&&(value.kind==='audio'||value.kind==='video')&&typeof value.src==='string'&&!!value.src.trim()
 // 导入 ZIP 清单时调用：规范 items 的热区坐标、可选文本字段和音频区间，不改动其他字段。
 // 损坏的条目或坐标会让阅读页在渲染时崩溃，这里按“没有热区”处理；
 // 无效区间会退回整段播放；区间字段类型错误则抛出，由导入流程提示用户。
 export function normalizeReaderManifest<T>(value:T):T{
  if(!object(value)||!Array.isArray(value.pages))return value
+ // 标题会进入 document.title、阅读器顶栏和书架；数字、对象或数组会在 .trim()
+ // 或 JSX 渲染时抛错。删除坏标题，由导入流程回退到文件名。
+ if(typeof value.title!=='string')delete value.title
  for(const page of value.pages){
   if(!object(page))continue
   // 书上页码会直接显示在阅读器顶栏和“第 N 页”提示里；对象或数组会让 JSX
   // 渲染抛错。非有限数字一律按未填写处理，退回物理页码。
   if(page.printedPage!==undefined&&!(typeof page.printedPage==='number'&&Number.isFinite(page.printedPage)))delete page.printedPage
+  // resources 可以缺省，但坏值会让 usePageAudio 与 LocalReader 在渲染时抛错；
+  // 逐条净化可选字段，标题再坏也不会进入 JSX。
+  if(page.resources!==undefined){
+   page.resources=Array.isArray(page.resources)?page.resources.filter(isResource):[]
+   for(const resource of page.resources){
+    if(typeof resource.title!=='string'||!resource.title.trim())resource.title=resource.kind==='audio'?'本页音频':'课堂动漫'
+    if(resource.subtitle!==undefined&&typeof resource.subtitle!=='string')delete resource.subtitle
+    if(resource.poster!==undefined&&typeof resource.poster!=='string')delete resource.poster
+    if(resource.track!==undefined&&(typeof resource.track!=='number'||!Number.isFinite(resource.track)))delete resource.track
+    if(resource.duration!==undefined&&(typeof resource.duration!=='number'||!Number.isFinite(resource.duration)||resource.duration<0))delete resource.duration
+    if(resource.startAt!==undefined&&(typeof resource.startAt!=='number'||!Number.isFinite(resource.startAt)||resource.startAt<0))delete resource.startAt
+    if(resource.continuous!==undefined&&typeof resource.continuous!=='boolean')delete resource.continuous
+   }
+  }
   if(!Array.isArray(page.items))continue
   // null、字符串或数组条目没有可用的 id / rects，保留下来只会在渲染时抛错。
-  page.items=page.items.filter((item:unknown)=>object(item))
+  // text 会直接成为 React 子节点和朗读文本；对象或数组同样会让阅读器崩溃。
+  page.items=page.items.filter((item:unknown)=>object(item)&&typeof item.text==='string')
   for(const item of page.items){
    item.rects=Array.isArray(item.rects)?item.rects.filter(isRect):[]
    // 释义和点读音源会直接进入 React 子节点与 Audio 构造器；对象、数组或数字

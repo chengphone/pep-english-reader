@@ -14,4 +14,14 @@ assert.equal(extract([fragment('hello',20,700),fragment('hello',20,700)]).length
 assert.equal(extract([fragment('A',20,700,80,120),fragment('I',20,500,8,14)])[0].text,'I')
 const clipped=extract([fragment('hello',-5,799,30)]);assert.ok(clipped.every(i=>i.rects.every(r=>r.every(v=>v>=0&&v<=1)&&r[0]<r[2]&&r[1]<r[3])))
 assert.equal(buildOcrHotspots([{text:'Hello',confidence:95,bbox:{x0:20,y0:20,x1:50,y1:35}},{text:'world!',confidence:96,bbox:{x0:54,y0:20,x1:100,y1:35}}],600,800,1)[0].text,'Hello world!')
-console.log('Passed: split words, punctuation, spacing, adjacent bubbles, multiline sentences, sentence boundaries, duplicates, decorative letters, clipping, OCR grouping')
+// Malformed PDFs/OCR results can carry NaN coordinates. A hotspot with NaN CSS
+// percentages silently becomes unclickable, so reject invalid geometry at extraction.
+assert.deepEqual(extract([fragment('broken',Number.NaN,700)]),[])
+assert.deepEqual(buildTextHotspots({items:[fragment('hello',20,700)]},{...viewport,width:0},1),[])
+const brokenRotation={...viewport,rotation:90,clone:()=>viewport,convertToPdfPoint:(x,y)=>[x,y],convertToViewportPoint:()=>[Number.NaN,Number.NaN]}
+assert.deepEqual(buildTextHotspots({items:[fragment('hello',20,700)]},brokenRotation,1),[])
+const validOcr={text:'Hello',confidence:95,bbox:{x0:20,y0:20,x1:50,y1:35}}
+const malformedOcr=[validOcr,{text:'bad',confidence:95,bbox:{x0:Number.NaN,y0:0,x1:10,y1:10}},{text:'bad',confidence:95,bbox:{x0:20,y0:20,x1:10,y1:30}},{text:'bad',confidence:Number.NaN,bbox:validOcr.bbox}]
+assert.deepEqual(buildOcrHotspots(malformedOcr,0,800,1),[])
+assert.deepEqual(buildOcrHotspots(malformedOcr,600,800,1).map(item=>item.text),['Hello'])
+console.log('Passed: split words, punctuation, spacing, adjacent bubbles, multiline sentences, sentence boundaries, duplicates, decorative letters, clipping, OCR grouping, malformed geometry')

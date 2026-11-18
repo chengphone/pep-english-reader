@@ -8,6 +8,7 @@ import { appUpdateReady, subscribeAppUpdates, reloadUpdatedApp } from './appUpda
 import { assetObjectUrl, revokeBookObjectUrls } from './assetUrls'
 import { renameMaterialBook } from './vocabularyStorage'
 import { normalizeReaderManifest } from './libraryValidation'
+import { assertBookArchiveSize, strFromU8, unzipBookArchive } from './bookArchive'
 import { buildTextHotspots, buildOcrHotspots, HOTSPOT_VERSION } from './hotspotExtraction'
 import { automaticallyTranslate, invalidateTranslationGlossary, type TranslationResult } from './automaticTranslation'
 import { extractVocabularyAppendix, parseVocabularyAppendix, persistAppendixUnits } from './vocabularyExtraction'
@@ -143,14 +144,25 @@ export default function App() {
     notify('正在导入教材…','progress')
     try {
       if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){await importPdf(file);return}
-      const { unzipSync, strFromU8 } = await import('fflate')
-      const z = unzipSync(new Uint8Array(await file.arrayBuffer())), mf = z['book.json'] ?? z['manifest.json']
+      assertBookArchiveSize(file.size)
+      const z = await unzipBookArchive(new Uint8Array(await file.arrayBuffer()))
+      const manifestPath = z['book.json'] ? 'book.json' : 'manifest.json'
+      let mf: Uint8Array | undefined = z[manifestPath]
       if (!mf) throw new Error('ZIP 根目录缺少 book.json')
       // 区间字段随清单一起导入；老清单没有这两个字段时保持整段播放。
       const manifest = normalizeReaderManifest(JSON.parse(strFromU8(mf)) as Manifest)
-      if (!manifest.bookId || !Array.isArray(manifest.pages) || !manifest.pages.length || !manifest.pages.every(page => page && typeof page === 'object' && Array.isArray(page.items))) throw new Error('教材包结构不正确：book.json 需要 bookId 和 pages，且每页都要包含 items 热区列表')
-      const assets: Record<string,Blob> = {}
-      for (const [path, bytes] of Object.entries(z)) if (!path.endsWith('/')) assets[path] = new Blob([bytes], { type: mimeType(path) })
+      mf = undefined
+      delete z[manifestPath]
+      if (typeof manifest.bookId !== 'string' || !manifest.bookId.trim() || !Array.isArray(manifest.pages) || !manifest.pages.length || !manifest.pages.every(page => page && typeof page === 'object' && Array.isArray(page.items))) throw new Error('教材包结构不正确：book.json 需要 bookId 和 pages，且每页都要包含 items 热区列表')
+      // 标题缺失或被净化时退回 ZIP 文件名，和 PDF 导入保持一致。
+      if (typeof manifest.title !== 'string' || !manifest.title.trim()) manifest.title = file.name.replace(/\.zip$/i, '') || manifest.bookId
+      const assets: Record<string,Blob> = Object.create(null)
+      for (const path of Object.keys(z)) {
+        if (path.endsWith('/')) { delete z[path]; continue }
+        const bytes = z[path]
+        assets[path] = new Blob([bytes], { type: mimeType(path) })
+        delete z[path]
+      }
       const book = { id: manifest.bookId, manifest, assets }; await putBook(book); setBooks(await allBooks()); setActive(book); setOnline(false); setPageIdx(0); notify('已导入教材，可离线点读','success')
     } catch (e) { notify(e instanceof Error ? e.message : '导入失败','error') }
   }

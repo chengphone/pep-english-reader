@@ -141,7 +141,9 @@ export function normalizeState(value: unknown): LearningState {
   }
   const readRecord = (profile: ProfileId) => {
     const rows = raw.words?.[profile]
-    const out: Record<string, WordRecord> = {}
+    // 词记录键来自存档；普通对象的 `out['__proto__'] = ...` 会改写原型而不是
+    // 保存一条记录，手写存档可以借此让统计和复习读到伪造的原型属性。
+    const out: Record<string, WordRecord> = Object.create(null)
     if (!rows || typeof rows !== 'object') return out
     for (const [key, value] of Object.entries(rows)) {
       if (!value || typeof value !== 'object') continue
@@ -207,7 +209,7 @@ export function normalizeState(value: unknown): LearningState {
   }
   const readDays = (profile: ProfileId) => {
     const rows = raw.days?.[profile]
-    const out: Record<string, DayStat> = {}
+    const out: Record<string, DayStat> = Object.create(null)
     if (!rows || typeof rows !== 'object') return out
     for (const [key, value] of Object.entries(rows)) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !value || typeof value !== 'object') continue
@@ -224,7 +226,7 @@ export function normalizeState(value: unknown): LearningState {
   }
   const readPages = (profile: ProfileId) => {
     const rows = raw.lastPages?.[profile]
-    const out: Record<string, number> = {}
+    const out: Record<string, number> = Object.create(null)
     if (!rows || typeof rows !== 'object') return out
     for (const [key, value] of Object.entries(rows)) {
       if (typeof value === 'number' && Number.isFinite(value) && value >= 0) out[key] = Math.trunc(value)

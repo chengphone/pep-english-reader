@@ -278,6 +278,24 @@ test('study seconds and quiz events land on the same local day', () => {
   assert.equal(day.words, 1)
 })
 
+test('state normalization treats dangerous keys as plain data instead of mutating prototypes', () => {
+  // 存档键可以来自 `profileWordKey(bookId, itemId)`；手写或旧版本数据可能包含
+  // `__proto__`。普通对象上的 `out[key] = ...` 会改写原型而不是保存记录。
+  const normalized = normalizeState(JSON.parse(`{
+    "version": 1,
+    "words": { "a": { "__proto__": {"bookId":"book","itemId":"p","text":"apple","reps":1,"nextReview":0} } },
+    "lastPages": { "a": { "__proto__": 4, "book": 2 } }
+  }`))
+  assert.equal(Object.keys(normalized.words.a).length, 1)
+  assert.equal(normalized.words.a['__proto__'].itemId, 'p')
+  assert.equal(Object.getPrototypeOf(normalized.words.a), Object.getPrototypeOf(normalized.words.b))
+  assert.equal(Object.getPrototypeOf(normalized.words.a), null)
+  assert.equal(({}).itemId, undefined)
+  assert.equal(normalized.lastPages.a['__proto__'], 4)
+  assert.equal(normalized.lastPages.a.book, 2)
+  assert.equal(Object.getPrototypeOf(normalized.lastPages.a), null)
+})
+
 test('addStudySeconds ignores invalid values and caps one flush', () => {
   const state = emptyState()
   const now = Date.now()

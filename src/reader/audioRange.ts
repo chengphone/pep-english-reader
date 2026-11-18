@@ -9,6 +9,11 @@ export function resolveAudioRange(item:Pick<ReaderItem,'audioStart'|'audioEnd'>)
  const end=item.audioEnd
  return typeof end==='number'&&Number.isFinite(end)&&end>start?{start,end}:null
 }
+// 点读区间只属于教材音轨；没有 item.audio 而回退到单词音频时，把几十秒的
+// 区间套到几秒钟的单词音频上会直接跳到末尾，什么也听不到。
+export function resolveItemRange(item:Pick<ReaderItem,'audio'|'audioStart'|'audioEnd'>):AudioRange|null{
+ return item.audio?resolveAudioRange(item):null
+}
 // 保存和导出前清理手填区间：与播放器的回退规则保持一致，不把负数、NaN
 // 或终点不大于起点的区间写进清单，否则列表里显示的区间和实际播放会不一致。
 export function sanitizeAudioRange<T extends Pick<ReaderItem,'audioStart'|'audioEnd'>>(item:T):T{

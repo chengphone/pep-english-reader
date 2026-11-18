@@ -41,7 +41,7 @@ function readAll(): Record<string, OfflineMeta> {
   try {
     const value = JSON.parse(localStorage.getItem(META_KEY) ?? '{}')
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-    const out: Record<string, OfflineMeta> = {}
+    const out: Record<string, OfflineMeta> = Object.create(null)
     for (const [bookId, row] of Object.entries(value)) {
       const meta = normalizeMeta(bookId, row)
       if (meta) out[bookId] = meta
@@ -101,6 +101,7 @@ export async function cacheBook(
   book: LocalBook,
   onProgress: (progress: OfflineProgress) => void,
   signal?: AbortSignal,
+  options: { refreshExisting?: boolean } = {},
 ): Promise<{ meta: OfflineMeta; failures: string[] }> {
   if (!book.remote) throw new Error('本机教材已经保存在浏览器中，不需要重复下载。')
   if (!('caches' in window)) throw new Error('当前浏览器不支持离线缓存，请使用 HTTPS 或 localhost 打开。')
@@ -126,7 +127,11 @@ export async function cacheBook(
       } catch {
         cached = undefined
       }
-      if (!cached) {
+      const refresh = Boolean(cached && options.refreshExisting)
+      if (cached && !refresh) {
+        cachedUrls.push(url)
+        bytes += Number(cached.headers.get('content-length')) || 0
+      } else {
         try {
           const response = await fetchForCache(url, signal)
           if (!response.ok && response.type !== 'opaque') throw new Error(String(response.status))
@@ -136,10 +141,12 @@ export async function cacheBook(
         } catch (error) {
           if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) throw error
           failures.push(url)
+          // 刷新失败时保留已缓存副本，并仍然将该资源计为可离线使用。
+          if (cached) {
+            cachedUrls.push(url)
+            bytes += Number(cached.headers.get('content-length')) || 0
+          }
         }
-      } else {
-        cachedUrls.push(url)
-        bytes += Number(cached.headers.get('content-length')) || 0
       }
       done++
       onProgress({ done, total, bytes, current: url })
@@ -165,7 +172,12 @@ export async function removeBookCache(bookId: string) {
   const meta = all[bookId]
   if (!meta) return
   const cache = await caches.open(BOOK_CACHE)
-  await Promise.all(meta.urls.map(url => cache.delete(url).catch(() => false)))
+  const referencedByOtherBooks = new Set(Object.entries(all)
+    .filter(([id]) => id !== bookId)
+    .flatMap(([, other]) => other.urls))
+  await Promise.all(meta.urls
+    .filter(url => !referencedByOtherBooks.has(url))
+    .map(url => cache.delete(url).catch(() => false)))
   delete all[bookId]
   writeAll(all)
 }

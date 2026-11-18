@@ -68,6 +68,32 @@ test('separate tabs merge page visits and clear events invalidate stale state', 
   assert.deepEqual(persisted.lastPages.a, {})
 })
 
+test('a stale cached page visit does not overwrite a newer page from another tab', () => {
+  firstTab.recordPageVisit('race', 1)
+  // 两个标签页都看到第 1 页。
+  deliverStorageEvents()
+  // 另一个标签页翻到第 2 页；storage 事件尚未送达。
+  secondTab.recordPageVisit('race', 2)
+  // 本标签页仍停留在第 1 页；旧缓存不能因此跳过写入，把最近页留在 2。
+  firstTab.recordPageVisit('race', 1)
+  const persisted = JSON.parse(values.get(STORAGE_KEY))
+  assert.equal(persisted.lastPages.a.race, 1)
+  deliverStorageEvents()
+})
+
+test('study seconds can be attributed to the profile that was active when they accrued', () => {
+  firstTab.setActiveProfile('b')
+  deliverStorageEvents()
+  // 计时器在切换档案后结算上一段时长：必须显式写回旧档案。
+  firstTab.recordStudySeconds(12, 'a')
+  const persisted = JSON.parse(values.get(STORAGE_KEY))
+  const [day] = Object.keys(persisted.days.a)
+  assert.equal(persisted.days.a[day].seconds, 12)
+  assert.deepEqual(persisted.days.b, {})
+  firstTab.setActiveProfile('a')
+  deliverStorageEvents()
+})
+
 test('corrupt last-chapter JSON is ignored while legacy plain text still reads', () => {
   // 合法 JSON 但不是章节记录：不能把原始 JSON 当章节名显示。
   values.set('pep:last-chapter:a:no-at', '{"label":"Unit 2"}')

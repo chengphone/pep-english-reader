@@ -85,12 +85,13 @@ test('malformed remote and local hotspots do not break a usable page', async () 
     pages: [{
       page: 1,
       image: 'page.jpg',
-      items: [null, { broken: true }, { id: 'valid', text: 'hello', order: 0, rects: [] }],
+      items: [null, { broken: true }, { id: 'valid', text: 'hello', order: 0, rects: [[0.1, 0.1, 0.4, 0.3], [0.8, 0.1, 0.2, 0.3], [-0.1, 0.1, 0.2, 0.3], [0.1, 0.1, 1.2, 0.3]] }],
     }],
   })
   const book = await loadRemoteBook({ id: 'demo', title: 'Demo', manifest: 'https://example.test/book.json' })
   assert.equal(book.manifest.pages.length, 1)
   assert.deepEqual(book.manifest.pages[0].items.map(item => item.id), ['valid'])
+  assert.deepEqual(book.manifest.pages[0].items[0].rects, [[0.1, 0.1, 0.4, 0.3]])
   assert.equal(readRemotePageItems('demo', 1), undefined)
 })
 

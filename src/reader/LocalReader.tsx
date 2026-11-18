@@ -116,7 +116,7 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
   const focusRect = focusMode && !hotspotEditing ? selected?.rects[0] ?? null : null
   const surfacePage = page && hotspotEditing ? { ...page, items: draftItems } : page
 
-  useStudyTimer(book.id, pageIndex)
+  useStudyTimer(book.id, pageIndex, profile)
   useEffect(() => { recordPageVisit(book.id, pageIndex) }, [book.id, pageIndex])
   useEffect(() => { recordLastChapter(book.id, section ?? `第 ${pageNumber} 页`) }, [book.id, section, pageNumber])
   // 退出教师模式时立即收起管理入口和未保存的编辑，儿童端不会残留标注层。

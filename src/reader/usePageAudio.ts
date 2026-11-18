@@ -51,6 +51,14 @@ export function preloadAudio(url: string) {
     .catch(() => { preloadedAudio.delete(url) })
 }
 
+// 翻页续播只适用于相邻页都标记 continuous 的同一段音频。仅 id/src 相同的
+// 普通资源仍应在离开本页时停止，否则上一页的声音会跟到下一页。
+export function continuesAcrossPage(current: ReaderResource, next: ReaderResource) {
+  return current.kind === 'audio' && next.kind === 'audio' &&
+    current.id === next.id && current.src === next.src &&
+    current.continuous === true && next.continuous === true
+}
+
 export function usePageAudio(page: ReaderPage | undefined): PageAudioController {
   const resources = useMemo(
     () => (page?.resources ?? []).filter(resource => resource.kind === 'audio'),
@@ -235,9 +243,7 @@ export function usePageAudio(page: ReaderPage | undefined): PageAudioController 
   useEffect(() => {
     const currentResource = active.current
     if (!currentResource) return
-    const match = (page?.resources ?? []).find(resource =>
-      resource.kind === 'audio' && resource.id === currentResource.id && resource.src === currentResource.src,
-    )
+    const match = (page?.resources ?? []).find(resource => continuesAcrossPage(currentResource, resource))
     if (!match) {
       stop()
       return

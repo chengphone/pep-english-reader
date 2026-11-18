@@ -76,7 +76,8 @@ function isObject(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 function isRect(value: unknown): value is [number, number, number, number] {
-  return Array.isArray(value) && value.length === 4 && value.every(number => typeof number === 'number' && Number.isFinite(number))
+  return Array.isArray(value) && value.length === 4 && value.every(number => typeof number === 'number' && Number.isFinite(number)) &&
+    value[0] >= 0 && value[1] >= 0 && value[2] <= 1 && value[3] <= 1 && value[2] > value[0] && value[3] > value[1]
 }
 function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
@@ -197,6 +198,10 @@ function readCachedCatalog(url: URL): unknown {
   }
 }
 
+function catalogRowCount(value: unknown) {
+  return Array.isArray(value) ? value.length : isObject(value) && Array.isArray(value.books) ? value.books.length : 0
+}
+
 function writeCachedCatalog(data: unknown, url: URL) {
   try {
     localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), url: url.href, data }))
@@ -226,10 +231,11 @@ export async function loadPictureCatalogDetailed(): Promise<PictureCatalogLoad> 
     const data = await fetchPictureCatalogData(url)
     if (data === null) return { entries: [] }
     const entries = normalizePictureCatalog(data, url)
-    const rowCount = Array.isArray(data) ? data.length : isObject(data) && Array.isArray(data.books) ? data.books.length : 0
     // 有名录但每一条都缺 id / manifest 时，是坏数据而不是空馆。
-    if (rowCount > 0 && !entries.length) throw new Error('绘本目录格式无效。')
-    if (entries.length) writeCachedCatalog(data, url)
+    if (catalogRowCount(data) > 0 && !entries.length) throw new Error('绘本目录格式无效。')
+    // 合法的空目录也是“上次成功读取的目录”，必须覆盖旧缓存；
+    // 否则之后断网会复活已经删除的绘本。
+    writeCachedCatalog(data, url)
     return { entries }
   } catch (error) {
     if (explicit) throw error
@@ -238,7 +244,9 @@ export async function loadPictureCatalogDetailed(): Promise<PictureCatalogLoad> 
     if (cached !== undefined) {
       try {
         const entries = normalizePictureCatalog(cached, url)
-        if (entries.length) {
+        // 合法空目录同样来自一次成功读取；此时离线应显示空馆，
+        // 而不是报错或回退到更旧的缓存。有名录却无有效条目仍是损坏缓存。
+        if (entries.length || catalogRowCount(cached) === 0) {
           console.warn('Picture book catalog unavailable; using cached copy', error)
           return { entries, cached: true }
         }
@@ -378,7 +386,9 @@ function normalizeProgressStore(value: unknown): ProgressStore {
   const store: ProgressStore = {}
   for (const [profile, rows] of Object.entries(value)) {
     if ((profile !== 'a' && profile !== 'b') || !isObject(rows)) continue
-    const normalized: Record<string, PictureProgress> = {}
+    // 书 id 来自存档；普通对象上的 `normalized['__proto__'] = ...` 会改写原型，
+    // 让这本绘本的进度消失，并让后续读取拿到伪造的原型属性。
+    const normalized: Record<string, PictureProgress> = Object.create(null)
     for (const [bookId, raw] of Object.entries(rows)) {
       const progress = normalizeProgress(raw)
       if (progress) normalized[bookId] = progress

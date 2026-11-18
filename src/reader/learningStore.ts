@@ -63,7 +63,11 @@ function update(mutator: (state: LearningState) => LearningState) {
       // Keep the in-session snapshot when storage is unavailable.
     }
   }
-  persist(mutator(state))
+  // 变更函数返回同一对象表示无需写入；这样“值没变”的判断可以放在刷新
+  // 持久化快照之后，避免用陈旧缓存吞掉另一个标签页刚写入的更新。
+  const next = mutator(state)
+  if (next === state) return
+  persist(next)
 }
 
 export function subscribeLearning(listener: () => void) {
@@ -106,15 +110,19 @@ export function renameProfile(profile: ProfileId, name: string) {
 
 export function recordPageVisit(bookId: string, page: number) {
   const profile = activeProfile()
-  const previous = getLearningState().lastPages[profile]?.[bookId]
-  if (previous === page) return
-  update(state => ({
-    ...state,
-    lastPages: {
-      ...state.lastPages,
-      [profile]: { ...(state.lastPages[profile] ?? {}), [bookId]: Math.max(0, Math.trunc(page)) },
-    },
-  }))
+  const visited = Math.max(0, Math.trunc(page))
+  update(state => {
+    // 必须先刷新持久化快照再判断是否变化，否则本标签页的旧缓存会漏掉
+    // 另一个标签页刚记录的页码，让“最近页”停在过期值上。
+    if (state.lastPages[profile]?.[bookId] === visited) return state
+    return {
+      ...state,
+      lastPages: {
+        ...state.lastPages,
+        [profile]: { ...(state.lastPages[profile] ?? {}), [bookId]: visited },
+      },
+    }
+  })
 }
 
 export function readLastPage(bookId: string, profile = activeProfile()) {
@@ -156,9 +164,10 @@ export function recordLastChapter(bookId: string, label: string) {
   }
 }
 
-export function recordStudySeconds(seconds: number) {
+// profile 默认取当前档案；计时器在切换档案后结算旧时段时必须显式传入
+// 计时开始时所属的档案，否则这段阅读时长会记到新档案上。
+export function recordStudySeconds(seconds: number, profile = activeProfile()) {
   if (!Number.isFinite(seconds) || seconds <= 0) return
-  const profile = activeProfile()
   update(state => ({ ...state, days: { ...state.days, [profile]: addStudySeconds(state, profile, seconds) } }))
 }
 

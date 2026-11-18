@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { cacheBook, collectBookUrls, listOfflineBooks, offlineStatus } from '../src/reader/offlineBooks.ts'
+import { BOOK_CACHE, cacheBook, collectBookUrls, listOfflineBooks, offlineStatus, removeBookCache } from '../src/reader/offlineBooks.ts'
 
 test('offline book URLs cover manifest, pages, audio, posters and deduplicate', () => {
   const book = {
@@ -62,6 +62,7 @@ test('corrupt offline metadata is ignored instead of crashing the dialog', () =>
       stringUrls: { urls: 'oops', cachedAt: 7 },
       nullEntry: null,
       badNumbers: { urls: ['https://example.test/b.jpg', 3, null, ''], cachedAt: 'yesterday', bytes: 'many' },
+      ['__proto__']: { title: 'Prototype key', cachedAt: 8, bytes: 1, urls: ['https://example.test/proto.jpg'] },
     }))
     assert.deepEqual(offlineStatus('good'), {
       bookId: 'good', title: 'Good', cachedAt: 100, bytes: 2048, urls: ['https://example.test/a.jpg'],
@@ -73,7 +74,10 @@ test('corrupt offline metadata is ignored instead of crashing the dialog', () =>
     assert.deepEqual(offlineStatus('badNumbers'), {
       bookId: 'badNumbers', title: 'badNumbers', cachedAt: 0, bytes: 0, urls: ['https://example.test/b.jpg'],
     })
-    assert.deepEqual(listOfflineBooks().map(meta => meta.bookId), ['good', 'badNumbers'])
+    assert.deepEqual(offlineStatus('__proto__'), {
+      bookId: '__proto__', title: 'Prototype key', cachedAt: 8, bytes: 1, urls: ['https://example.test/proto.jpg'],
+    })
+    assert.deepEqual(listOfflineBooks().map(meta => meta.bookId), ['good', '__proto__', 'badNumbers'])
     store.set('pep:offline-books:v1', JSON.stringify(['not', 'an', 'object']))
     assert.deepEqual(listOfflineBooks(), [])
   } finally {
@@ -166,6 +170,119 @@ test('cancelling an offline download aborts active fetches and settles promptly'
     else globalThis.caches = originalCaches
     if (originalLocation === undefined) delete globalThis.location
     else globalThis.location = originalLocation
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('removing one book preserves cache URLs referenced by another book', async () => {
+  const originalWindow = globalThis.window
+  const originalCaches = globalThis.caches
+  const originalLocalStorage = globalThis.localStorage
+  const saved = new Map([
+    ['https://example.test/shared.mp3', new Response('shared')],
+    ['https://example.test/first-only.jpg', new Response('first')],
+  ])
+  const cache = {
+    match: async url => saved.get(String(url))?.clone(),
+    delete: async url => saved.delete(String(url)),
+  }
+  const store = new Map([['pep:offline-books:v1', JSON.stringify({
+    first: { title: 'First', urls: ['https://example.test/shared.mp3', 'https://example.test/first-only.jpg'] },
+    second: { title: 'Second', urls: ['https://example.test/shared.mp3'] },
+  })]])
+  globalThis.caches = { open: async name => { assert.equal(name, BOOK_CACHE); return cache } }
+  globalThis.window = { caches: globalThis.caches }
+  globalThis.localStorage = { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)) }
+  try {
+    await removeBookCache('first')
+    assert.equal(saved.has('https://example.test/shared.mp3'), true)
+    assert.equal(saved.has('https://example.test/first-only.jpg'), false)
+    assert.deepEqual(offlineStatus('second')?.urls, ['https://example.test/shared.mp3'])
+    assert.equal(offlineStatus('first'), undefined)
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window
+    else globalThis.window = originalWindow
+    if (originalCaches === undefined) delete globalThis.caches
+    else globalThis.caches = originalCaches
+    if (originalLocalStorage === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = originalLocalStorage
+  }
+})
+
+test('updating an offline book refreshes cached URLs', async () => {
+  const originalWindow = globalThis.window
+  const originalCaches = globalThis.caches
+  const originalLocation = globalThis.location
+  const originalLocalStorage = globalThis.localStorage
+  const originalFetch = globalThis.fetch
+  const urls = ['https://example.test/book-data/demo/book.json', 'https://example.test/book-data/demo/page.jpg']
+  const saved = new Map(urls.map(url => [url, new Response('old')]))
+  const requests = []
+  const cache = {
+    match: async url => saved.get(String(url))?.clone(),
+    put: async (url, response) => { saved.set(String(url), response.clone()) },
+  }
+  const store = new Map()
+  globalThis.location = { origin: 'https://example.test' }
+  globalThis.caches = { open: async () => cache }
+  globalThis.window = { caches: globalThis.caches }
+  globalThis.localStorage = { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)) }
+  globalThis.fetch = async url => { requests.push(String(url)); return new Response(`new:${url}`) }
+  try {
+    const book = { id: 'demo', remote: true, manifestUrl: urls[0], assets: {}, manifest: { title: 'Demo', pages: [{ page: 1, image: urls[1], items: [] }] } }
+    const result = await cacheBook(book, () => {}, undefined, { refreshExisting: true })
+    assert.deepEqual(requests.sort(), [...urls].sort())
+    assert.equal(await saved.get(urls[0]).text(), `new:${urls[0]}`)
+    assert.equal(await saved.get(urls[1]).text(), `new:${urls[1]}`)
+    assert.deepEqual(result.failures, [])
+    assert.deepEqual(result.meta.urls.sort(), [...urls].sort())
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window
+    else globalThis.window = originalWindow
+    if (originalCaches === undefined) delete globalThis.caches
+    else globalThis.caches = originalCaches
+    if (originalLocation === undefined) delete globalThis.location
+    else globalThis.location = originalLocation
+    if (originalLocalStorage === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = originalLocalStorage
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('failed offline refresh keeps its previous cached response', async () => {
+  const originalWindow = globalThis.window
+  const originalCaches = globalThis.caches
+  const originalLocation = globalThis.location
+  const originalLocalStorage = globalThis.localStorage
+  const originalFetch = globalThis.fetch
+  const urls = ['https://example.test/book-data/demo/book.json', 'https://example.test/book-data/demo/page.jpg']
+  const saved = new Map(urls.map(url => [url, new Response(`old:${url}`)]))
+  const cache = {
+    match: async url => saved.get(String(url))?.clone(),
+    put: async (url, response) => { saved.set(String(url), response.clone()) },
+  }
+  const store = new Map()
+  globalThis.location = { origin: 'https://example.test' }
+  globalThis.caches = { open: async () => cache }
+  globalThis.window = { caches: globalThis.caches }
+  globalThis.localStorage = { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)) }
+  globalThis.fetch = async url => String(url) === urls[1] ? new Response('unavailable', { status: 503 }) : new Response(`new:${url}`)
+  try {
+    const book = { id: 'demo', remote: true, manifestUrl: urls[0], assets: {}, manifest: { title: 'Demo', pages: [{ page: 1, image: urls[1], items: [] }] } }
+    const result = await cacheBook(book, () => {}, undefined, { refreshExisting: true })
+    assert.equal(await saved.get(urls[0]).text(), `new:${urls[0]}`)
+    assert.equal(await saved.get(urls[1]).text(), `old:${urls[1]}`)
+    assert.deepEqual(result.failures, [urls[1]])
+    assert.deepEqual(result.meta.urls.sort(), [...urls].sort())
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window
+    else globalThis.window = originalWindow
+    if (originalCaches === undefined) delete globalThis.caches
+    else globalThis.caches = originalCaches
+    if (originalLocation === undefined) delete globalThis.location
+    else globalThis.location = originalLocation
+    if (originalLocalStorage === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = originalLocalStorage
     globalThis.fetch = originalFetch
   }
 })

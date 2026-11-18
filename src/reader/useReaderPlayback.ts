@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { audioKey, readWordAudios } from '../wordAudio'
-import { formatAudioRange, prepareAudioRange, rangeProgress, resolveAudioRange, type AudioRange } from './audioRange'
+import { formatAudioRange, prepareAudioRange, rangeProgress, resolveItemRange, type AudioRange } from './audioRange'
 import type { LocalBook, ReaderItem } from './types'
 export type ReaderPlaybackStatus='idle'|'loading'|'playing'|'paused'|'error'
 export type ReaderPlaybackController={
@@ -71,7 +71,7 @@ export function useReaderPlayback(book:LocalBook|null,onSelect:(item:ReaderItem)
    if(!src){const record=(await readWordAudios([item.text])).get(audioKey(item.text));if(token!==version.current)return;if(record){blob=record.blob;kind=record.voice.startsWith('网站音频')?record.voice:'本地音频'}}
    if(token!==version.current)return
    if(blob){url.current=URL.createObjectURL(blob);src=url.current}
-   const rangeValue=src?resolveAudioRange(item):null
+   const rangeValue=src?resolveItemRange(item):null
    range.current=rangeValue
    // 区间总长可以先显示出来，不必等浏览器加载完整音频元数据。
    if(rangeValue)setDuration(Math.max(0,rangeValue.end-rangeValue.start))

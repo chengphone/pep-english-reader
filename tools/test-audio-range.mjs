@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
-import { resolveAudioRange, sanitizeAudioRange, rangeProgress, prepareAudioRange, formatAudioTime, formatAudioRange } from '../src/reader/audioRange.ts'
+import { resolveAudioRange, resolveItemRange, sanitizeAudioRange, rangeProgress, prepareAudioRange, formatAudioTime, formatAudioRange } from '../src/reader/audioRange.ts'
 import { normalizeReaderManifest } from '../src/libraryValidation.ts'
+import { continuesAcrossPage } from '../src/reader/usePageAudio.ts'
 
 class FakePlayer {
  constructor(){this._time=0;this.seeking=false;this.readyState=0;this.duration=15;this.pauses=0;this.listeners=new Map()}
@@ -23,6 +24,10 @@ assert.equal(resolveAudioRange({audioStart:3,audioEnd:3}),null)
 assert.equal(resolveAudioRange({audioStart:3,audioEnd:2}),null)
 assert.equal(resolveAudioRange({audioStart:Number.NaN,audioEnd:5}).start,0)
 assert.equal(resolveAudioRange({audioEnd:Number.POSITIVE_INFINITY}),null)
+// 区间只属于教材音轨；没有 audio 而回退到单词音频时不能套用区间。
+assert.deepEqual(resolveItemRange({audio:'audio/1.mp3',audioStart:3,audioEnd:5}),{start:3,end:5})
+assert.equal(resolveItemRange({audioStart:3,audioEnd:5}),null)
+assert.equal(resolveItemRange({audio:'',audioStart:3,audioEnd:5}),null)
 
 // 有区间：元数据后跳到起点，seek 完成前不判结束；到达终点只回调一次并暂停。
 {
@@ -99,7 +104,7 @@ assert.throws(()=>normalizeReaderManifest({...oldManifest,pages:[{...oldManifest
   null,
   'broken',
   [],
-  {id:'i2',text:'Junk',rects:[[0,0,1],[0,0,1,1],['0','0','1','1'],[0,0,Infinity,1],[0.1,0.2,0.3,0.4]]},
+  {id:'i2',text:'Junk',rects:[[0,0,1],[0,0,1,1],['0','0','1','1'],[0,0,Infinity,1],[0.1,0.2,0.3,0.4],[0.9,0.2,0.3,0.4],[-0.1,0,0.2,0.3],[0,0,1.1,1],[0.2,0.2,0.2,0.4]]},
   {id:'i3',text:'NoRects'},
  ]
  const items=normalizeReaderManifest(dirty).pages[0].items
@@ -109,6 +114,46 @@ assert.throws(()=>normalizeReaderManifest({...oldManifest,pages:[{...oldManifest
  assert.deepEqual(items[2].rects,[])
  // 非数组的 items 原样保留，由导入流程整体拒绝，而不是在打开时崩溃。
  assert.equal(normalizeReaderManifest({pages:[{page:1,items:'nope'}]}).pages[0].items,'nope')
+}
+
+// 用户 ZIP 的标题、条目文本和页面资源会直接进入渲染；坏值必须在这里净化。
+{
+ const dirty={schemaVersion:1,bookId:'b',title:123,publisherId:'pep',pages:[{page:1,image:'pages/1.svg',resources:{nope:true},items:[
+  {id:'ok',text:'Hello',order:1,rects:[]},
+  {id:'badText',text:{zh:'苹果'},order:2,rects:[]},
+  {id:'nullText',text:null,order:3,rects:[]},
+ ]}]}
+ const clean=normalizeReaderManifest(dirty)
+ assert.equal('title' in clean,false)
+ assert.deepEqual(clean.pages[0].items.map(item=>item.id),['ok'])
+ assert.deepEqual(clean.pages[0].resources,[])
+}
+{
+ const dirty={schemaVersion:1,bookId:'b',title:'T',publisherId:'pep',pages:[{page:1,image:'pages/1.svg',items:[],resources:[
+  null,
+  'broken',
+  {id:'a',kind:'audio',title:{bad:1},src:'audio/1.mp3',duration:-1,startAt:Number.NaN,continuous:'yes'},
+  {id:'v',kind:'video',title:'V',src:'video/1.mp4',poster:{}},
+  {id:'',kind:'audio',title:'No id',src:'audio/2.mp3'},
+ ]}]}
+ const resources=normalizeReaderManifest(dirty).pages[0].resources
+ assert.equal(resources.length,2)
+ assert.equal(resources[0].title,'本页音频')
+ assert.equal('duration' in resources[0],false)
+ assert.equal('startAt' in resources[0],false)
+ assert.equal('continuous' in resources[0],false)
+ assert.equal(resources[1].title,'V')
+ assert.equal('poster' in resources[1],false)
+}
+
+// 翻页续播只认两页都标记 continuous 的同一段音频。
+{
+ const base={id:'a',kind:'audio',title:'T',src:'a.mp3'}
+ assert.equal(continuesAcrossPage({...base,continuous:true},{...base,continuous:true}),true)
+ assert.equal(continuesAcrossPage(base,{...base,continuous:true}),false)
+ assert.equal(continuesAcrossPage({...base,continuous:true},base),false)
+ assert.equal(continuesAcrossPage({...base,continuous:true},{...base,id:'b',continuous:true}),false)
+ assert.equal(continuesAcrossPage({...base,kind:'video',continuous:true},{...base,kind:'video',continuous:true}),false)
 }
 
 // 保存/导出前清理手填区间：只保留播放器真正会用的值，其余字段原样。
@@ -128,4 +173,4 @@ assert.throws(()=>normalizeReaderManifest({...oldManifest,pages:[{...oldManifest
  const plain=sanitizeAudioRange(item)
  assert.equal(plain,item,'无需清理时应原样返回同一对象')
 }
-console.log('Passed: clip start/end parsing, seek gating, stop at segment end, legacy full-audio behavior, segment progress, old manifest compatibility, saving hotspot ranges')
+console.log('Passed: clip start/end parsing, seek gating, stop at segment end, legacy full-audio behavior, segment progress, old manifest compatibility, saving hotspot ranges, textbook-only ranges, resource and continuous-page sanitizing')

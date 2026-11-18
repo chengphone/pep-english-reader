@@ -10,7 +10,7 @@ const TRANSLATION_KEY = 'pep:remote-translation:'
 const ITEMS_KEY = 'pep:remote-items:'
 
 function isObject(value: unknown): value is Record<string, any> { return !!value && typeof value === 'object' && !Array.isArray(value) }
-function isRect(value: unknown): value is [number, number, number, number] { return Array.isArray(value) && value.length === 4 && value.every(number => typeof number === 'number' && Number.isFinite(number)) }
+function isRect(value: unknown): value is [number, number, number, number] { return Array.isArray(value) && value.length === 4 && value.every(number => typeof number === 'number' && Number.isFinite(number)) && value[0] >= 0 && value[1] >= 0 && value[2] <= 1 && value[3] <= 1 && value[2] > value[0] && value[3] > value[1] }
 function isResource(value: unknown): value is ReaderResource {
   return isObject(value) && typeof value.id === 'string' && !!value.id.trim() &&
     (value.kind === 'audio' || value.kind === 'video') &&
@@ -135,7 +135,13 @@ export async function loadRemoteBook(entry: RemoteBookEntry): Promise<LocalBook>
     if (!validManifest(data)) throw new Error('在线教材清单缺少页面，无法打开。')
     const sanitized: ReaderManifest = {
       ...data,
-      pages: data.pages.map(page => ({ ...page, items: normalizeRemoteItems(page.items) })),
+      pages: data.pages.map(page => ({
+        ...page,
+        items: normalizeRemoteItems(page.items),
+        // 资源必须先按在线目录规则过滤。共享净化器会把无效的可选字段删掉，
+        // 之后 isResource 就分辨不出原本损坏的资源了（例如负 duration）。
+        resources: Array.isArray(page.resources) ? page.resources.filter(isResource) : page.resources,
+      })),
     }
     return normalizeReaderManifest(sanitized)
   })

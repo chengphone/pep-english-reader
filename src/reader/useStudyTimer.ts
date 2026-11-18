@@ -1,8 +1,10 @@
 import { useEffect } from 'react'
+import type { ProfileId } from './learningCore'
 import { recordStudySeconds } from './learningStore'
 
 // 只统计页面可见时的阅读时长；翻页或离开阅读器时立即结算。
-export function useStudyTimer(bookId: string, page: number) {
+// profile 变化时先按旧档案结算上一段时长，再按新档案重新计时。
+export function useStudyTimer(bookId: string, page: number, profile: ProfileId) {
   useEffect(() => {
     let started = document.visibilityState === 'visible' ? Date.now() : 0
     let disposed = false
@@ -10,7 +12,7 @@ export function useStudyTimer(bookId: string, page: number) {
       if (!started) return
       const seconds = (Date.now() - started) / 1000
       started = Date.now()
-      if (seconds >= 1) recordStudySeconds(seconds)
+      if (seconds >= 1) recordStudySeconds(seconds, profile)
     }
     const timer = window.setInterval(flush, 60_000)
     const visibility = () => {
@@ -29,5 +31,5 @@ export function useStudyTimer(bookId: string, page: number) {
       document.removeEventListener('visibilitychange', visibility)
       flush()
     }
-  }, [bookId, page])
+  }, [bookId, page, profile])
 }

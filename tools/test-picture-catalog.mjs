@@ -52,6 +52,25 @@ test('successful catalog is cached and used when the network later fails', async
   assert.equal(second.error, undefined)
 })
 
+test('a successful empty catalog replaces an older cached catalog', async () => {
+  installBase()
+  globalThis.fetch = async () => jsonResponse({ books: [row('a')] })
+  assert.equal((await loadPictureCatalogDetailed()).entries.length, 1)
+
+  // 服务器随后返回合法的空目录：这是一次成功读取，应覆盖旧缓存。
+  globalThis.fetch = async () => jsonResponse({ books: [] })
+  const emptied = await loadPictureCatalogDetailed()
+  assert.deepEqual(emptied.entries, [])
+  assert.equal(emptied.error, undefined)
+
+  // 再断网：不能复活已经删除的绘本。
+  globalThis.fetch = async () => { throw new TypeError('Failed to fetch') }
+  const offline = await loadPictureCatalogDetailed()
+  assert.deepEqual(offline.entries, [])
+  assert.equal(offline.cached, true)
+  assert.equal(offline.error, undefined)
+})
+
 test('network failure without a cached copy reports an error instead of an empty catalog', async () => {
   installBase()
   globalThis.fetch = async () => { throw new TypeError('Failed to fetch') }

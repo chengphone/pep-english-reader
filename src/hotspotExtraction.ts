@@ -14,10 +14,80 @@ function build(fragments:Fragment[],pageNumber:number):GeneratedHotspot[]{
  if(candidate){candidate.text=candidate.text.trim()+' '+run.text.trim();candidate.parts.push(run)}else groups.push({text:run.text.trim(),parts:[run]})}
  return groups.filter(g=>/[A-Za-z]/.test(g.text)).map((g,i)=>({id:`p${pageNumber}_s${i+1}`,text:g.text.replace(/\s+/g,' ').trim(),order:i+1,rects:g.parts.map(p=>p.rect)}))
 }
-export function buildTextHotspots(content:any,viewport:any,pageNumber:number):GeneratedHotspot[]{
- const displayViewport=viewport;viewport=viewport.clone?viewport.clone({rotation:0}):viewport;
- const fragments:Fragment[]=[];for(const [index,item] of content.items.entries()){if(typeof item.str!=='string'||!item.str.trim())continue;const text=clean(item.str);if(!/[A-Za-z.,!?;:'’()]/.test(text))continue;const t=item.transform;if(!t||!Number.isFinite(item.width))continue;const height=Math.abs(item.height)||Math.hypot(t[2],t[3]);if(height>viewport.height/viewport.scale*.09&&/^[A-Z]$/.test(text.trim()))continue;const font=content.styles?.[item.fontName];const ascent=font?.ascent??.9,descent=font?.descent??-.18;const len=Math.hypot(t[0],t[1])||1,vertical=Math.hypot(t[2],t[3])||1;const ux=t[0]/len,uy=t[1]/len,vx=t[2]/vertical,vy=t[3]/vertical;const points=[];for(const x of [0,item.width])for(const y of [descent*height,ascent*height])points.push(viewport.convertToViewportPoint(t[4]+ux*x+vx*y,t[5]+uy*x+vy*y));const left=Math.max(0,Math.min(...points.map(p=>p[0]))/viewport.width),right=Math.min(1,Math.max(...points.map(p=>p[0]))/viewport.width),top=Math.max(0,Math.min(...points.map(p=>p[1]))/viewport.height),bottom=Math.min(1,Math.max(...points.map(p=>p[1]))/viewport.height);if(right<=left||bottom<=top)continue;fragments.push({text,rect:[left,top,right,bottom],baseline:viewport.convertToViewportPoint(t[4],t[5])[1]/viewport.width,size:height*viewport.scale/viewport.width,index})}
- const result=build(fragments,pageNumber);if(displayViewport.rotation===viewport.rotation)return result;
- return result.map(item=>({...item,rects:item.rects.map(r=>{const pts=[];for(const x of [r[0],r[2]])for(const y of [r[1],r[3]]){const pdf=viewport.convertToPdfPoint(x*viewport.width,y*viewport.height);pts.push(displayViewport.convertToViewportPoint(pdf[0],pdf[1]))}return [Math.max(0,Math.min(...pts.map(p=>p[0]))/displayViewport.width),Math.max(0,Math.min(...pts.map(p=>p[1]))/displayViewport.height),Math.min(1,Math.max(...pts.map(p=>p[0]))/displayViewport.width),Math.min(1,Math.max(...pts.map(p=>p[1]))/displayViewport.height)] as Rect})}))
+function validViewport(viewport:any):boolean{
+ return !!viewport&&Number.isFinite(viewport.width)&&viewport.width>0&&Number.isFinite(viewport.height)&&viewport.height>0&&Number.isFinite(viewport.scale)&&viewport.scale>0&&typeof viewport.convertToViewportPoint==='function'
 }
-export function buildOcrHotspots(words:any[],width:number,height:number,pageNumber:number){return build(words.filter(w=>w.confidence>=35&&w.text?.trim()).map((w,index)=>({text:clean(w.text),rect:[Math.max(0,w.bbox.x0/width),Math.max(0,w.bbox.y0/height),Math.min(1,w.bbox.x1/width),Math.min(1,w.bbox.y1/height)] as Rect,baseline:w.bbox.y1/width,size:(w.bbox.y1-w.bbox.y0)/width,index})),pageNumber)}
+function validRect(rect:Rect):boolean{
+ return rect.every(Number.isFinite)&&rect[0]>=0&&rect[1]>=0&&rect[2]<=1&&rect[3]<=1&&rect[2]>rect[0]&&rect[3]>rect[1]
+}
+export function buildTextHotspots(content:any,viewport:any,pageNumber:number):GeneratedHotspot[]{
+ if(!Array.isArray(content?.items)||!validViewport(viewport))return []
+ const displayViewport=viewport
+ viewport=viewport.clone?viewport.clone({rotation:0}):viewport
+ if(!validViewport(viewport))return []
+ const fragments:Fragment[]=[]
+ for(const [index,item] of content.items.entries()){
+  if(!item||typeof item.str!=='string'||!item.str.trim())continue
+  const text=clean(item.str)
+  if(!/[A-Za-z.,!?;:'’()]/.test(text))continue
+  const t=item.transform
+  if(!Array.isArray(t)||t.length<6||!t.slice(0,6).every(Number.isFinite)||!Number.isFinite(item.width))continue
+  const rawHeight=Math.abs(item.height)
+  const height=Number.isFinite(rawHeight)&&rawHeight>0?rawHeight:Math.hypot(t[2],t[3])
+  if(!Number.isFinite(height)||height<=0)continue
+  if(height>viewport.height/viewport.scale*.09&&/^[A-Z]$/.test(text.trim()))continue
+  const font=content.styles?.[item.fontName]
+  const ascent=Number.isFinite(font?.ascent)?font.ascent:.9
+  const descent=Number.isFinite(font?.descent)?font.descent:-.18
+  const len=Math.hypot(t[0],t[1])||1,vertical=Math.hypot(t[2],t[3])||1
+  const ux=t[0]/len,uy=t[1]/len,vx=t[2]/vertical,vy=t[3]/vertical
+  const points:number[][]=[]
+  for(const x of [0,item.width])for(const y of [descent*height,ascent*height])points.push(viewport.convertToViewportPoint(t[4]+ux*x+vx*y,t[5]+uy*x+vy*y))
+  if(points.some(point=>!Array.isArray(point)||!Number.isFinite(point[0])||!Number.isFinite(point[1])))continue
+  const left=Math.max(0,Math.min(...points.map(point=>point[0]))/viewport.width)
+  const right=Math.min(1,Math.max(...points.map(point=>point[0]))/viewport.width)
+  const top=Math.max(0,Math.min(...points.map(point=>point[1]))/viewport.height)
+  const bottom=Math.min(1,Math.max(...points.map(point=>point[1]))/viewport.height)
+  const baselinePoint=viewport.convertToViewportPoint(t[4],t[5])
+  const baseline=baselinePoint?.[1]/viewport.width,size=height*viewport.scale/viewport.width
+  const rect:Rect=[left,top,right,bottom]
+  if(!validRect(rect)||!Number.isFinite(baseline)||!Number.isFinite(size)||size<=0)continue
+  fragments.push({text,rect,baseline,size,index})
+ }
+ const result=build(fragments,pageNumber)
+ if(displayViewport.rotation===viewport.rotation)return result
+ if(!validViewport(displayViewport)||typeof viewport.convertToPdfPoint!=='function')return []
+ return result.flatMap(item=>{
+  const rects=item.rects.flatMap(rect=>{
+   const points:number[][]=[]
+   for(const x of [rect[0],rect[2]])for(const y of [rect[1],rect[3]]){
+    const pdf=viewport.convertToPdfPoint(x*viewport.width,y*viewport.height)
+    points.push(displayViewport.convertToViewportPoint(pdf[0],pdf[1]))
+   }
+   if(points.some(point=>!Array.isArray(point)||!Number.isFinite(point[0])||!Number.isFinite(point[1])))return []
+   const converted:Rect=[
+    Math.max(0,Math.min(...points.map(point=>point[0]))/displayViewport.width),
+    Math.max(0,Math.min(...points.map(point=>point[1]))/displayViewport.height),
+    Math.min(1,Math.max(...points.map(point=>point[0]))/displayViewport.width),
+    Math.min(1,Math.max(...points.map(point=>point[1]))/displayViewport.height),
+   ]
+   return validRect(converted)?[converted]:[]
+  })
+  return rects.length?[{...item,rects}]:[]
+ })
+}
+export function buildOcrHotspots(words:any[],width:number,height:number,pageNumber:number){
+ if(!Array.isArray(words)||!Number.isFinite(width)||width<=0||!Number.isFinite(height)||height<=0)return []
+ const fragments:Fragment[]=[]
+ for(const [index,word] of words.entries()){
+  const box=word?.bbox
+  if(typeof word?.text!=='string'||!word.text.trim()||!Number.isFinite(word.confidence)||word.confidence<35||!box)continue
+  const {x0,y0,x1,y1}=box
+  if(![x0,y0,x1,y1].every(Number.isFinite)||x1<=x0||y1<=y0)continue
+  const rect:Rect=[Math.max(0,x0/width),Math.max(0,y0/height),Math.min(1,x1/width),Math.min(1,y1/height)]
+  const baseline=y1/width,size=(y1-y0)/width
+  if(!validRect(rect)||!Number.isFinite(baseline)||!Number.isFinite(size)||size<=0)continue
+  fragments.push({text:clean(word.text),rect,baseline,size,index})
+ }
+ return build(fragments,pageNumber)
+}
