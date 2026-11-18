@@ -57,11 +57,20 @@ function applyGroups(entries: BookTocEntry[], manifest: ReaderManifest): BookToc
   const anchors = entries
     .map((entry, index) => ({ entry, index }))
     .filter(row => row.entry.level === 1)
-  for (let start = 0; start < anchors.length; start += 10) {
-    const first = anchors[start]
-    const last = anchors[Math.min(start + 9, anchors.length - 1)]
-    const title = `第 ${first.entry.label}–${last.entry.label} 页`
-    for (let index = first.index; index <= last.index; index++) entries[index].group = title
+  // 只有二级小节时也按书页段落分组，不能让 30+ 条小节平铺。
+  const rows = anchors.length ? anchors : entries.map((entry, index) => ({ entry, index }))
+  for (let start = 0; start < rows.length; start += 10) {
+    const first = rows[start]
+    const next = rows[start + 10]
+    // 第一组从目录开头算起，收留一级章节之前就出现的二级小节；
+    // 分组要覆盖到下一个分组第一项之前，否则第 10 个一级章节后面的
+    // 二级小节会漏掉分组，在目录里变成没有标题的孤立条目。
+    const begin = start === 0 ? 0 : first.index
+    const end = next ? next.index - 1 : entries.length - 1
+    const from = entries[begin]?.label ?? first.entry.label
+    const to = entries[end]?.label ?? first.entry.label
+    const title = from === to ? `第 ${from} 页` : `第 ${from}–${to} 页`
+    for (let index = begin; index <= end; index++) entries[index].group = title
   }
   return entries
 }
@@ -170,6 +179,13 @@ export function buildBookToc(manifest: ReaderManifest): BookTocEntry[] {
     for (const resource of page.resources ?? []) if (resource.id) resourceIds.add(resource.id)
   }
   return applyGroups(entries, manifest)
+}
+
+// 目录条目的 page 是清单里的物理页码，阅读器翻页用的是数组下标。
+// 页码不一定等于下标 + 1（清单可能跳页或从其它页码开始），跳转前必须查一次。
+export function pageIndexForPageNumber(pages: { page: number }[], pageNumber: number): number | undefined {
+  const index = pages.findIndex(page => page.page === pageNumber)
+  return index >= 0 ? index : undefined
 }
 
 // 当前页对应的目录项：优先精确命中一级条目，否则取当前页之前最近的一级条目。

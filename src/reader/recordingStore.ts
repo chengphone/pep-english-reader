@@ -67,7 +67,10 @@ function readMeta(): RecordingMeta[] {
       if (typeof record.mime !== 'string' || !record.mime) return []
       const duration = Number(record.duration)
       const createdAt = Number(record.createdAt)
-      const score = Number(record.score)
+      // score 为 null / 空串 / 布尔值时不能变成 0 分，否则面板会把“没有评分”
+      // 显示成一次 0 分的录音；数值也要收敛到 0–100 的整数。
+      const rawScore = record.score
+      const parsedScore = typeof rawScore === 'number' ? rawScore : typeof rawScore === 'string' && rawScore.trim() ? Number(rawScore) : Number.NaN
       return [{
         id: record.id,
         profile: record.profile,
@@ -75,7 +78,7 @@ function readMeta(): RecordingMeta[] {
         itemId: record.itemId,
         text: record.text,
         duration: Number.isFinite(duration) ? Math.max(0, duration) : 0,
-        score: Number.isFinite(score) ? score : undefined,
+        score: Number.isFinite(parsedScore) ? Math.max(0, Math.min(100, Math.round(parsedScore))) : undefined,
         mime: record.mime,
         createdAt: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : 0,
       }]

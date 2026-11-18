@@ -25,7 +25,9 @@ export default function PageResources({ page, pageNumber, audio, onToggle, onOpe
         <div className="page-resource-audios">
           {audios.map(resource => {
             const isActive = audio.activeId === resource.id
-            const total = (isActive ? audio.duration : 0) || resource.duration || 0
+            // 清单里的时长可能缺省或损坏；非有限值不能进入进度条的上限。
+            const declared = typeof resource.duration === 'number' && Number.isFinite(resource.duration) && resource.duration > 0 ? resource.duration : 0
+            const total = (isActive ? audio.duration : 0) || declared
             return <div className={`page-resource-audio${isActive ? ' is-active' : ''}`} key={resource.id}>
               <button className="page-resource-audio-main" aria-label={`${isActive && audio.playing ? '暂停' : '播放'}${resource.title}`} onClick={() => onToggle(resource)}>
                 <span className="page-resource-play-icon">{isActive && audio.playing ? <Pause size={18}/> : <Play size={18}/>}</span>

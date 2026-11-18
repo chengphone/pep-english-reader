@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { activeTocIndex, buildBookToc } from '../src/reader/tocEntries.ts'
+import { activeTocIndex, buildBookToc, pageIndexForPageNumber } from '../src/reader/tocEntries.ts'
 
 const page = (number, printedPage, items = [], resources) => ({ page: number, printedPage, image: `pages/${number}.jpg`, items, ...(resources ? { resources } : {}) })
 const item = (id, text) => ({ id, text, order: 0, rects: [] })
@@ -21,6 +21,11 @@ assert.deepEqual(picture.map(entry => [entry.title, entry.page, entry.label, ent
 assert.equal(activeTocIndex(picture, 13), 2)
 assert.equal(activeTocIndex(picture, 12), 1)
 assert.equal(activeTocIndex(picture, 14), 2)
+// 目录跳转必须把物理页码映射回数组下标，不能直接用 page - 1。
+assert.equal(pageIndexForPageNumber(picture.map(entry => ({ page: entry.page })), 1), 0)
+assert.equal(pageIndexForPageNumber([{ page: 1 }, { page: 10 }, { page: 13 }], 10), 1)
+assert.equal(pageIndexForPageNumber([{ page: 1 }, { page: 10 }, { page: 13 }], 13), 2)
+assert.equal(pageIndexForPageNumber([{ page: 1 }, { page: 10 }, { page: 13 }], 2), undefined)
 
 // 主题分组按页码区间写入 group；同一页的二级小节和一级主题共享分组。
 const grouped = buildBookToc({
@@ -48,6 +53,20 @@ const fallback = buildBookToc(manifest(fallbackPages))
 assert.equal(new Set(fallback.map(entry => entry.group)).size, 4)
 assert.equal(fallback[0].group, '第 1–10 页')
 assert.equal(fallback[31].group, '第 31–32 页')
+// 第 10 个一级章节后的二级小节也必须归入当前分组，不能变成没有标题的孤立条目。
+const headingPages = Array.from({ length: 31 }, (_, index) => page(
+  index + 1,
+  index + 1,
+  index === 9 ? [item(`p${index + 1}_t`, `Topic ${index + 1}`), item(`p${index + 1}_h1`, 'Subtopic')] : [item(`p${index + 1}_t`, `Topic ${index + 1}`)],
+))
+const headingToc = buildBookToc(manifest(headingPages))
+assert.ok(headingToc.every(entry => entry.group), 'every entry in a grouped TOC needs a group')
+assert.equal(headingToc.find(entry => entry.title === 'Subtopic')?.group, '第 1–10 页')
+// 只有二级小节的大目录同样按书页段落分组，不能 30+ 条平铺。
+const subOnly = buildBookToc(manifest(Array.from({ length: 31 }, (_, index) => page(index + 1, index + 1, [item(`p${index + 1}_h1`, `Subtopic ${index + 1}`)]))))
+assert.equal(new Set(subOnly.map(entry => entry.group)).size, 4)
+assert.equal(subOnly[0].group, '第 1–10 页')
+assert.equal(subOnly[30].group, '第 31 页')
 
 // 清单显式目录优先；无效页码和空标题被丢弃。
 const explicit = buildBookToc({

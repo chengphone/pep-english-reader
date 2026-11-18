@@ -86,8 +86,36 @@ function optionalSeconds(value: unknown) {
   const seconds = Number(value)
   return Number.isFinite(seconds) ? Math.max(0, seconds) : undefined
 }
+// 只接受数字或非空数字字符串；null、空串和布尔值会被 Number() 变成 0，
+// 不能拿来当集数，否则自定义绘本会显示成“第 0 集”。
+function optionalNumber(value: unknown) {
+  if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return undefined
+  const number = Number(value)
+  return Number.isFinite(number) ? number : undefined
+}
+// 没有集数的绘本不显示集数标签，避免界面出现“第 undefined 集”。
+// 集数是 1 起的正整数；0、负数和小数都按无效值隐藏。
+export function episodeLabel(episode?: number) {
+  return typeof episode === 'number' && Number.isInteger(episode) && episode > 0 ? `第 ${episode} 集` : ''
+}
 function normalizeLevel(value: unknown): PictureLevel {
   return LEVELS.includes(value as PictureLevel) ? value as PictureLevel : 'starter'
+}
+// 可选数量字段同样只接受真正的数字或非空数字字符串；null / '' / false
+// 不能被 Number() 解释成 0，否则目录会显示“0 个跨页”“1 分钟”这类假数据。
+function optionalCount(value: unknown) {
+  const number = optionalNumber(value)
+  return number === undefined ? undefined : Math.max(0, Math.trunc(number))
+}
+function optionalMinutes(value: unknown) {
+  const number = optionalNumber(value)
+  return number === undefined ? undefined : Math.max(1, Math.trunc(number))
+}
+// 集数只接受 1 起的整数；0、负数和小数不能进入目录，否则会显示成
+// “第 0 集”或让篇章区间和排序拿到无效值。
+function optionalEpisode(value: unknown) {
+  const number = optionalNumber(value)
+  return number !== undefined && Number.isInteger(number) && number > 0 ? number : undefined
 }
 
 export function pictureCatalogUrl(): URL {
@@ -117,16 +145,18 @@ export function normalizePictureCatalog(value: unknown, base: URL): PictureCatal
   const entries: PictureCatalogEntry[] = []
   const seen = new Set<string>()
   for (const row of rows) {
-    if (!isObject(row) || !cleanText(row.id) || seen.has(String(row.id))) continue
+    if (!isObject(row)) continue
+    // 先去掉 id 两端空白再查重，否则 “ demo ” 和 “demo” 会变成两张指向同一本书的卡片。
+    const id = cleanText(row.id)
+    if (!id || seen.has(id)) continue
     const manifest = safeUrl(row.manifest, base)
     if (!manifest) continue
-    const id = String(row.id)
     seen.add(id)
     const themes = Array.isArray(row.themes) ? row.themes.map(cleanText).filter(Boolean) : []
     entries.push({
       id,
       title: cleanText(row.title) || id,
-      episode: Number.isFinite(Number(row.episode)) ? Number(row.episode) : undefined,
+      episode: optionalEpisode(row.episode),
       series: cleanText(row.series) || '绘本',
       level: normalizeLevel(row.level),
       levelLabel: cleanText(row.levelLabel) || '启蒙',
@@ -134,13 +164,13 @@ export function normalizePictureCatalog(value: unknown, base: URL): PictureCatal
       cover: safeUrl(row.cover, base) ?? new URL('cover.jpg', base).href,
       art: safeUrl(row.art, base),
       manifest,
-      pages: Number.isFinite(Number(row.pages)) ? Math.max(0, Math.trunc(Number(row.pages))) : undefined,
+      pages: optionalCount(row.pages),
       // 新目录只带生词数量；旧缓存或自定义目录仍是完整数组，两种都接受。
-      vocabulary: Array.isArray(row.vocabulary) ? row.vocabulary.length : Number.isFinite(Number(row.vocabulary)) ? Math.max(0, Math.trunc(Number(row.vocabulary))) : undefined,
-      quiz: Number.isFinite(Number(row.quiz)) ? Math.max(0, Math.trunc(Number(row.quiz))) : undefined,
-      wordCount: Number.isFinite(Number(row.wordCount)) ? Math.max(0, Math.trunc(Number(row.wordCount))) : undefined,
-      minutes: Number.isFinite(Number(row.minutes)) ? Math.max(1, Math.trunc(Number(row.minutes))) : undefined,
-      audioDuration: Number.isFinite(Number(row.audioDuration)) ? Number(row.audioDuration) : undefined,
+      vocabulary: Array.isArray(row.vocabulary) ? row.vocabulary.length : optionalCount(row.vocabulary),
+      quiz: optionalCount(row.quiz),
+      wordCount: optionalCount(row.wordCount),
+      minutes: optionalMinutes(row.minutes),
+      audioDuration: optionalNumber(row.audioDuration),
     })
   }
   return entries
@@ -233,11 +263,21 @@ export function normalizePictureManifest(value: unknown, base: URL): PictureBook
     const image = safeUrl(row.image, base)
     if (!image) continue
     const sentences: PictureSentence[] = []
+    // 选中的句子按 id 在本页查找；同一页出现重复 id 时第二个句子永远选不中，
+    // React 列表 key 也会冲突，所以给重复项补后缀保持页内唯一。
+    const seenSentenceIds = new Set<string>()
     for (const sentence of Array.isArray(row.sentences) ? row.sentences : []) {
       if (!isObject(sentence) || typeof sentence.text !== 'string' || !sentence.text.trim()) continue
       const rects = Array.isArray(sentence.rects) ? sentence.rects.filter(isRect) : []
+      let id = cleanText(sentence.id) || `p${index}-s${sentences.length + 1}`
+      if (seenSentenceIds.has(id)) {
+        let suffix = 2
+        while (seenSentenceIds.has(`${id}-${suffix}`)) suffix++
+        id = `${id}-${suffix}`
+      }
+      seenSentenceIds.add(id)
       sentences.push({
-        id: cleanText(sentence.id) || `p${index}-s${sentences.length + 1}`,
+        id,
         text: sentence.text.trim(),
         side: sentence.side === 'right' || sentence.side === 'both' ? sentence.side : 'left',
         rects,
@@ -284,7 +324,7 @@ export function normalizePictureManifest(value: unknown, base: URL): PictureBook
     bookId: cleanText(value.bookId),
     title: cleanText(value.title) || '绘本',
     series: cleanText(value.series) || '绘本',
-    episode: Number.isFinite(Number(value.episode)) ? Number(value.episode) : undefined,
+    episode: optionalEpisode(value.episode),
     level: normalizeLevel(value.level),
     levelLabel: cleanText(value.levelLabel) || '启蒙',
     themes: Array.isArray(value.themes) ? value.themes.map(cleanText).filter(Boolean) : [],
@@ -444,18 +484,29 @@ export function buildVocabularyQuiz(manifest: PictureBookManifest, count = 5): P
   const vocabulary: PictureWord[] = []
   const seenWords = new Set<string>()
   for (const row of manifest.vocabulary ?? []) {
-    if (!row.word || !row.definition) continue
-    const key = row.word.trim().toLowerCase()
+    const word = row.word.trim()
+    const definition = row.definition.trim()
+    // “1.” 之类只剩序号的释义清洗后为空，不能拿来当正确选项。
+    if (!word || !shortDefinition(definition)) continue
+    const key = word.toLowerCase()
     if (seenWords.has(key)) continue
     seenWords.add(key)
-    vocabulary.push(row)
+    vocabulary.push({ ...row, word, definition })
   }
   if (vocabulary.length < 2) return []
   const picks = deterministicShuffle(vocabulary, `${manifest.bookId}:words`).slice(0, Math.min(count, vocabulary.length))
   return picks.flatMap((word) => {
     const correct = shortDefinition(word.definition)
+    const wordKey = word.word.trim().toLowerCase()
+    // 同一集里不同单词可能给出相同释义，先按释义去重，避免选项里出现两个一样的答案。
+    const candidates = [...new Set(
+      vocabulary
+        .filter(row => row.word.trim().toLowerCase() !== wordKey)
+        .map(row => shortDefinition(row.definition))
+        .filter(definition => definition && definition !== correct),
+    )]
     const distractors = deterministicShuffle(
-      vocabulary.filter(row => row.word.toLowerCase() !== word.word.toLowerCase()).map(row => shortDefinition(row.definition)).filter(value => value && value !== correct),
+      candidates,
       `${manifest.bookId}:${word.word}:options`,
     ).slice(0, 3)
     const options = deterministicShuffle([correct, ...distractors], `${manifest.bookId}:${word.word}:order`)

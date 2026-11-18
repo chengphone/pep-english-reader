@@ -37,7 +37,11 @@ export function preloadAudio(url: string) {
   if (connection?.saveData || connection?.effectiveType === 'slow-2g' || connection?.effectiveType === '2g') return
   preloadedAudio.add(url)
   void fetch(url, { cache: 'force-cache' })
-    .then(response => response.ok ? response.arrayBuffer() : undefined)
+    .then(response => {
+      // 404/500 或断网重试时不要把 URL 永久标记为已预取，否则本会话再也不补。
+      if (!response.ok) { preloadedAudio.delete(url); return undefined }
+      return response.arrayBuffer()
+    })
     .catch(() => { preloadedAudio.delete(url) })
 }
 
@@ -102,7 +106,8 @@ export function usePageAudio(page: ReaderPage | undefined): PageAudioController 
     setActiveResourceState(resource)
     setPlaying(false)
     setCurrent(from)
-    setDuration(Math.max(0, resource.duration ?? 0))
+    // 清单里的 duration 可能损坏；非有限值不能让播放条拿到 NaN 进度。
+    setDuration(Number.isFinite(resource.duration) ? Math.max(0, resource.duration!) : 0)
     setError('')
 
     player.ontimeupdate = () => {

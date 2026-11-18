@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   buildVocabularyQuiz,
+  episodeLabel,
   hasComprehension,
   latestPictureProgress,
   normalizePictureCatalog,
@@ -234,25 +235,110 @@ test('vocabulary quiz deduplicates words and drops questions without two options
     ],
   }, 5)
   assert.deepEqual(identical, [])
+
+  // 不同单词给出相同释义时，干扰项必须按释义去重，不能在选项里重复。
+  const repeated = buildVocabularyQuiz({
+    ...manifest,
+    vocabulary: [
+      { word: 'apple', definition: '苹果' },
+      { word: 'banana', definition: '香蕉' },
+      { word: 'cat', definition: '猫' },
+      { word: 'dog', definition: '猫' },
+      { word: 'egg', definition: '鸡蛋' },
+    ],
+  }, 5)
+  assert.equal(repeated.length, 5)
+  for (const question of repeated) {
+    assert.equal(new Set(question.options).size, question.options.length)
+    assert(question.options.length >= 2)
+    assert(question.answer >= 0 && question.answer < question.options.length)
+  }
+
+  // 词条两端空白先归一化；只剩序号的释义清洗后为空，不能生成空选项。
+  const cleaned = buildVocabularyQuiz({
+    ...manifest,
+    vocabulary: [
+      { word: ' apple ', definition: ' 苹果 ' },
+      { word: 'banana', definition: '香蕉' },
+      { word: 'fig', definition: '1.' },
+    ],
+  }, 5)
+  assert.equal(cleaned.length, 2)
+  assert(cleaned.every(question => !question.id.includes('fig')))
+  for (const question of cleaned) {
+    assert(question.options.every(option => option.length > 0 && option === option.trim()))
+  }
 })
 
 test('picture catalog skips only rows with unusable manifest URLs', () => {
   const base = new URL('https://example.test/picture-data/picture-books.json')
   const entries = normalizePictureCatalog({
     books: [
-      { id: 'ok', title: 'OK', series: 'Series', cover: 'cover.jpg', manifest: 'books/ok/book.json' },
-      { id: 'bad-cover', title: 'Bad Cover', cover: 'http://[', manifest: 'books/bc/book.json' },
+      { id: 'ok', title: 'OK', series: 'Series', cover: 'cover.jpg', manifest: 'books/ok/book.json', episode: ' 12 ' },
+      { id: 'bad-cover', title: 'Bad Cover', cover: 'http://[', manifest: 'books/bc/book.json', episode: null },
       { id: 'bad-manifest', title: 'Bad', manifest: 'http://[' },
       { id: 'js', title: 'JS', manifest: 'javascript:alert(1)' },
       null,
       { id: 'ok', title: 'Duplicate' },
+      { id: ' demo ', title: 'Spaced', manifest: 'books/demo/a.json', episode: '' },
+      { id: 'demo', title: 'Duplicate after trim', manifest: 'books/demo/b.json' },
+      { id: 'nulls', title: 'Nulls', manifest: 'books/nulls/book.json', pages: null, vocabulary: null, quiz: null, wordCount: null, minutes: null, audioDuration: null },
+      { id: 'numeric', title: 'Numeric', manifest: 'books/num/book.json', pages: ' 12 ', vocabulary: '3', quiz: '2', wordCount: '40', minutes: '5', audioDuration: '120.5' },
     ],
   }, base)
-  assert.deepEqual(entries.map(entry => entry.id), ['ok', 'bad-cover'])
+  assert.deepEqual(entries.map(entry => entry.id), ['ok', 'bad-cover', 'demo', 'nulls', 'numeric'])
   assert.equal(entries[0].manifest, 'https://example.test/picture-data/books/ok/book.json')
+  assert.equal(entries[0].episode, 12)
+  // null 和空串不能经 Number() 变成“第 0 集”。
+  assert.equal(entries[1].episode, undefined)
   assert.equal(entries[1].cover, 'https://example.test/picture-data/cover.jpg')
+  assert.equal(entries[2].title, 'Spaced')
+  assert.equal(entries[2].episode, undefined)
+  assert.equal(entries[2].manifest, 'https://example.test/picture-data/books/demo/a.json')
+  // 可选数量字段为 null 时必须保持“未知”，不能被 Number(null) 变成 0 / 1。
+  assert.equal(entries[3].pages, undefined)
+  assert.equal(entries[3].vocabulary, undefined)
+  assert.equal(entries[3].quiz, undefined)
+  assert.equal(entries[3].wordCount, undefined)
+  assert.equal(entries[3].minutes, undefined)
+  assert.equal(entries[3].audioDuration, undefined)
+  // 非空数字字符串仍按数字处理，目录生成器可以沿用旧格式。
+  assert.equal(entries[4].pages, 12)
+  assert.equal(entries[4].vocabulary, 3)
+  assert.equal(entries[4].quiz, 2)
+  assert.equal(entries[4].wordCount, 40)
+  assert.equal(entries[4].minutes, 5)
+  assert.equal(entries[4].audioDuration, 120.5)
   assert.deepEqual(normalizePictureCatalog([], base), [])
   assert.throws(() => normalizePictureCatalog({}, base), /绘本目录格式无效/)
+})
+
+test('episode labels stay hidden when the catalog or manifest has no episode', () => {
+  assert.equal(episodeLabel(7), '第 7 集')
+  assert.equal(episodeLabel(undefined), '')
+  assert.equal(episodeLabel(Number.NaN), '')
+  // 集数是 1 起的整数；0、负数和小数都不能显示成“第 0 集”。
+  assert.equal(episodeLabel(0), '')
+  assert.equal(episodeLabel(-2), '')
+  assert.equal(episodeLabel(1.5), '')
+  const base = new URL('https://example.test/picture-data/books/x/book.json')
+  const episodeOf = value => normalizePictureManifest({ pages: [{ image: 'p.jpg' }], episode: value }, base)?.episode
+  assert.equal(episodeOf(' 7 '), 7)
+  assert.equal(episodeOf(null), undefined)
+  assert.equal(episodeOf(''), undefined)
+  assert.equal(episodeOf('   '), undefined)
+  assert.equal(episodeOf(false), undefined)
+  assert.equal(episodeOf('not-a-number'), undefined)
+  assert.equal(episodeOf(0), undefined)
+  assert.equal(episodeOf('-4'), undefined)
+  assert.equal(episodeOf(2.5), undefined)
+  const catalog = normalizePictureCatalog([
+    { id: 'zero', title: 'Zero', manifest: 'books/zero/book.json', episode: 0 },
+    { id: 'half', title: 'Half', manifest: 'books/half/book.json', episode: 1.5 },
+    { id: 'negative', title: 'Negative', manifest: 'books/negative/book.json', episode: -3 },
+    { id: 'seven', title: 'Seven', manifest: 'books/seven/book.json', episode: ' 7 ' },
+  ], base)
+  assert.deepEqual(catalog.map(entry => entry.episode), [undefined, undefined, undefined, 7])
 })
 
 test('corrupt picture progress entries are ignored and latest valid entry wins', () => {
@@ -372,4 +458,20 @@ test('picture manifest skips unusable pages and falls back to default media URLs
   assert.equal(normalized.comprehension[2].answer, 0)
   assert.equal(normalizePictureManifest({ pages: [] }, base), undefined)
   assert.equal(normalizePictureManifest({ pages: [{ image: 'http://[' }] }, base), undefined)
+})
+
+test('duplicate sentence ids on one page are made unique', () => {
+  const base = new URL('https://example.test/picture-data/books/x/book.json')
+  const normalized = normalizePictureManifest({
+    pages: [{
+      image: 'p.jpg',
+      sentences: [
+        { id: 's1', text: 'One' },
+        { id: 's1', text: 'Two' },
+        { id: 's1-2', text: 'Three' },
+        { id: 's1', text: 'Four' },
+      ],
+    }],
+  }, base)
+  assert.deepEqual(normalized.pages[0].sentences.map(sentence => sentence.id), ['s1', 's1-2', 's1-2-2', 's1-3'])
 })

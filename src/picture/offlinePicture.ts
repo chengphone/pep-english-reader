@@ -68,16 +68,28 @@ export async function savePictureOffline(
   let saved = 0
   for (const url of urls) {
     if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : new DOMException('The operation was aborted.', 'AbortError')
+    let stored = false
     try {
       // A bounded request keeps one unavailable resource from pinning the whole queue.
       const response = await fetchWithTimeout(url, { cache: 'reload', signal }, response => response, requestTimeoutMs)
-      if (!response.ok || response.type === 'opaque') continue
-      await cache.put(url, response.clone())
-      saved += 1
+      if (response.ok && response.type !== 'opaque') {
+        await cache.put(url, response.clone())
+        stored = true
+      }
     } catch (error) {
       if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) throw error
       // Single-resource network/timeout failure is reported through saved / total.
     }
+    if (!stored) {
+      try {
+        // 上次已经保存过、这次只是刷新失败的文件仍然可以离线打开；
+        // 进度按缓存里实际有的文件计数，不能因为服务器暂时不可用就退回 0。
+        stored = Boolean(await cache.match(url, { ignoreVary: true }))
+      } catch {
+        stored = false
+      }
+    }
+    if (stored) saved += 1
     onProgress({ supported: true, total: urls.length, saved, complete: saved === urls.length })
   }
   return { supported: true, total: urls.length, saved, complete: saved === urls.length }

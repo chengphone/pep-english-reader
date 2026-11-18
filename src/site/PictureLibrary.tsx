@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, BookOpen, ChevronDown, Filter, Play, Search, Sparkles, X } from 'lucide-react'
 import type { PictureCatalogEntry, PictureLevel } from '../pictureBooks'
-import { latestPictureProgress, pictureArt, pictureProgressPosition, readPictureProgress } from '../pictureBooks'
+import { episodeLabel, latestPictureProgress, pictureArt, pictureProgressPosition, readPictureProgress } from '../pictureBooks'
 import { arcForEntry, groupPictureEntries } from '../pictureArcs'
 import { useLearningState } from '../reader/learningStore'
 import './SitePages.css'
@@ -53,7 +53,8 @@ export default function PictureLibrary({
     if (theme !== '全部' && !(entry.themes ?? []).includes(theme)) return false
     if (needle) {
       const arc = arcForEntry(entry)
-      const haystack = `${entry.title} ${entry.series} ${entry.levelLabel} ${(entry.themes ?? []).join(' ')} 第${entry.episode ?? ''}集 ${arc?.volume ?? ''} ${arc?.title ?? ''} ${arc?.description ?? ''}`.toLowerCase()
+      // 没有集数的绘本不拼出“第集”，否则搜索“集”会误命中所有绘本。
+      const haystack = [entry.title, entry.series, entry.levelLabel, (entry.themes ?? []).join(' '), episodeLabel(entry.episode), arc?.volume, arc?.title, arc?.description].filter(Boolean).join(' ').toLowerCase()
       if (!haystack.includes(needle)) return false
     }
     return true
@@ -62,7 +63,10 @@ export default function PictureLibrary({
   const totalArcs = useMemo(() => groupPictureEntries(entries).length, [entries])
   const hasFilter = Boolean(needle) || level !== 'all' || theme !== '全部'
   const first = entries[0]
-  const continuePage = continueProgress ? continueProgress.pageIndex : 0
+  // 目录换版后进度可能超出当前跨页数；继续卡片按实际页数收敛，避免显示第 999 个跨页。
+  const continuePage = continueProgress
+    ? continueEntry?.pages ? Math.min(continueProgress.pageIndex, Math.max(0, continueEntry.pages - 1)) : continueProgress.pageIndex
+    : 0
 
   // 首次载入目录时展开最近读过的篇章；没有进度时从第一卷开始。
   useEffect(() => {
@@ -155,8 +159,8 @@ export default function PictureLibrary({
       <div className="library-continue-copy">
         <span className="page-kicker">CONTINUE STORY</span>
         <h2 id="library-continue-title">{continueEntry.title}</h2>
-        <p>{continueEntry.series} · 第 {continueEntry.episode} 集 · 上次读到第 {continuePage + 1} 个跨页</p>
-        <div className="library-progress"><span><i style={{ width: `${pictureProgressPosition(continueProgress, continueEntry.pages ?? 1)}%` }}/></span><small>{continueProgress?.mode === 'practice' ? '跟读模式' : continueProgress?.mode === 'self' ? '自己读' : '听故事'}</small></div>
+        <p>{[continueEntry.series, episodeLabel(continueEntry.episode), `上次读到第 ${continuePage + 1} 个跨页`].filter(Boolean).join(' · ')}</p>
+        <div className="library-progress">{continueEntry.pages ? <span><i style={{ width: `${pictureProgressPosition(continueProgress, continueEntry.pages)}%` }}/></span> : null}<small>{continueProgress?.mode === 'practice' ? '跟读模式' : continueProgress?.mode === 'self' ? '自己读' : '听故事'}</small></div>
       </div>
       <div className="library-continue-actions">
         <button type="button" className="page-hero-action" onClick={() => onOpenPicture(continueEntry.id)}>继续读<ArrowRight size={15}/></button>
@@ -221,15 +225,20 @@ export default function PictureLibrary({
               <div className="picture-card-grid picture-arc-grid">
                 {arcEntries.map(entry => {
                   const progress = readPictureProgress(entry.id, profile)
+                  const episode = episodeLabel(entry.episode)
                   return <button key={entry.id} type="button" className="picture-card" aria-label={`打开绘本 ${entry.title}`} onClick={() => onOpenPicture(entry.id)}>
                     <span className="picture-card-art">
                       <img src={pictureArt(entry)} alt="" loading="lazy"/>
-                      <span className="picture-card-episode">第 {entry.episode} 集</span>
-                      {progress && <span className="picture-card-progress"><i style={{ width: `${pictureProgressPosition(progress, entry.pages ?? 1)}%` }}/></span>}
+                      {episode ? <span className="picture-card-episode">{episode}</span> : null}
+                      {progress && entry.pages ? <span className="picture-card-progress"><i style={{ width: `${pictureProgressPosition(progress, entry.pages)}%` }}/></span> : null}
                     </span>
                     <span className="picture-card-copy">
                       <strong>{entry.title}</strong>
-                      <small>{entry.levelLabel} · {entry.minutes ? `${entry.minutes} 分钟` : `${entry.pages ?? 0} 个跨页`} · {(entry.themes ?? []).slice(0, 2).join(' / ')}</small>
+                      <small>{[
+                        entry.levelLabel,
+                        entry.minutes ? `${entry.minutes} 分钟` : entry.pages ? `${entry.pages} 个跨页` : '绘本',
+                        (entry.themes ?? []).slice(0, 2).join(' / '),
+                      ].filter(Boolean).join(' · ')}</small>
                     </span>
                   </button>
                 })}

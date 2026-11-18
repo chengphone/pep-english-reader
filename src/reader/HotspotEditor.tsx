@@ -1,4 +1,5 @@
 import { Download, Save, Trash2, X } from 'lucide-react'
+import { resolveAudioRange } from './audioRange'
 import type { ReaderItem, ReaderResource } from './types'
 
 type Props = {
@@ -29,10 +30,15 @@ export default function HotspotEditor({ pageNumber, items, selectedId, audioReso
     <p className="hotspot-editor-hint">在书页上按住拖动，画出一个新的点读区域。</p>
     <div className="hotspot-editor-list">
       {!sorted.length && <p className="hotspot-editor-empty">本页还没有热区。先在书页上画一个矩形。</p>}
-      {sorted.map(item => <button key={item.id} className={item.id === selectedId ? 'is-active' : ''} onClick={() => onSelect(item)}>
-        <span>{item.text || '未命名词条'}</span>
-        <small>{item.rects.length} 个区域 · {item.audioStart != null ? `${item.audioStart.toFixed(2)}–${(item.audioEnd ?? 0).toFixed(2)}s` : '整段音频'}</small>
-      </button>)}
+      {sorted.map(item => {
+        // 区间以播放器实际采用的值为准：负起点或终点不大于起点时按整段音频显示，
+        // 避免列表写着 “12.00–3.00s” 而点读实际播放整段。
+        const range = resolveAudioRange(item)
+        return <button key={item.id} className={item.id === selectedId ? 'is-active' : ''} onClick={() => onSelect(item)}>
+          <span>{item.text || '未命名词条'}</span>
+          <small>{item.rects.length} 个区域 · {range ? `${range.start.toFixed(2)}–${range.end.toFixed(2)}s` : '整段音频'}</small>
+        </button>
+      })}
     </div>
     {selected ? <div className="hotspot-editor-form">
       <label>单词 / 句子<input value={selected.text} onChange={event => onChange({ text: event.target.value })} placeholder="例如 apple"/></label>
@@ -42,9 +48,10 @@ export default function HotspotEditor({ pageNumber, items, selectedId, audioReso
         {audioResources.map(resource => <option key={resource.id} value={resource.src}>{resource.title} · {resource.subtitle || resource.src.split('/').pop()}</option>)}
       </select></label>
       <div className="hotspot-editor-range">
-        <label>开始<input type="number" min={0} step={0.01} value={selected.audioStart ?? 0} onChange={event => onChange({ audioStart: Number(event.target.value) })}/></label>
-        <label>结束<input type="number" min={0} step={0.01} value={selected.audioEnd ?? 0} onChange={event => onChange({ audioEnd: Number(event.target.value) })}/></label>
+        <label>开始<input type="number" min={0} step={0.01} value={selected.audioStart ?? 0} onChange={event => onChange({ audioStart: Math.max(0, Number(event.target.value) || 0) })}/></label>
+        <label>结束<input type="number" min={0} step={0.01} value={selected.audioEnd ?? 0} onChange={event => onChange({ audioEnd: Math.max(0, Number(event.target.value) || 0) })}/></label>
       </div>
+      {selected.audioEnd != null && !resolveAudioRange(selected) && <p className="hotspot-editor-hint" role="status">结束时间要大于开始时间，否则这段按整段音频播放。</p>}
       <small className="hotspot-editor-meta">{selected.rects.length} 个热区 · 音频区间必须从真实音轨核对</small>
       <div className="hotspot-editor-actions">
         <button className="is-danger" onClick={onDelete}><Trash2 size={15}/>删除</button>

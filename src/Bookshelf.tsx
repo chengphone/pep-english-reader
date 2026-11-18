@@ -9,7 +9,7 @@ import type { ProfileId } from './reader/learningCore'
 import { LOCAL_BOOKS_ENABLED } from './features'
 import { BookCover, grades, termLabel } from './site/BookCover'
 import type { PictureCatalogEntry } from './pictureBooks'
-import { pictureArt, readPictureProgress, type PictureProgress } from './pictureBooks'
+import { episodeLabel, pictureArt, readPictureProgress, type PictureProgress } from './pictureBooks'
 import { groupPictureSeries } from './pictureSeries'
 
 type SavedBook = { id: string; title: string; pages: number; lastPage: number }
@@ -170,7 +170,7 @@ export default function Bookshelf({ books, remoteBooks, catalog, pendingCatalog 
     kind: 'local',
     id: book.id,
     title: book.title,
-    subtitle: book.lastPage > 0 ? `第 ${book.lastPage + 1} 页` : '离线教材',
+    subtitle: book.lastPage > 0 ? `第 ${Math.min(book.lastPage + 1, Math.max(1, book.pages))} 页` : '离线教材',
     pages: book.pages,
     lastPage: book.lastPage,
     keywords: `${book.title} 离线 本机`,
@@ -189,12 +189,17 @@ export default function Bookshelf({ books, remoteBooks, catalog, pendingCatalog 
   }))
   const pictureEntries: ShelfEntry[] = pictureBooks.map(book => {
     const progress = readPictureProgress(book.id, profile)
+    // 目录的 pages 是可选字段；缺失时不能显示成“第 3 / 0 个跨页”，
+    // 也不把越界的旧进度原样显示在书架上。
+    const reached = progress
+      ? book.pages ? Math.min(book.pages, Math.max(0, progress.pageIndex) + 1) : Math.max(0, progress.pageIndex) + 1
+      : 0
     return {
       key: `picture:${book.id}`,
       kind: 'picture',
       id: book.id,
       title: book.title,
-      subtitle: progress ? `第 ${progress.pageIndex + 1} / ${book.pages ?? 0} 个跨页` : `绘本 · ${book.levelLabel}`,
+      subtitle: progress ? (book.pages ? `第 ${reached} / ${book.pages} 个跨页` : `读到第 ${reached} 个跨页`) : `绘本 · ${book.levelLabel}`,
       pages: book.pages,
       lastPage: progress?.pageIndex ?? 0,
       cover: book.cover,
@@ -215,8 +220,10 @@ export default function Bookshelf({ books, remoteBooks, catalog, pendingCatalog 
       if (progress && (!latest || progress.updatedAt > latest.progress.updatedAt)) latest = { book, progress }
     }
     const openBook = latest?.book ?? display
+    // 自定义绘本可能没有集数，不能凭空补成“第 1 集”。
+    const episode = episodeLabel(openBook.episode)
     const meta = latest
-      ? `${display.levelLabel} · 读到第 ${openBook.episode ?? 1} / ${group.episodes.length} 集`
+      ? `${display.levelLabel} · ${episode ? `读到${episode} / ${group.episodes.length} 集` : `已开始阅读 · 共 ${group.episodes.length} 集`}`
       : `${display.levelLabel} · 共 ${group.episodes.length} 集`
     const entry: ShelfEntry = {
       key: `picture-series:${group.key}`,
@@ -270,6 +277,7 @@ export default function Bookshelf({ books, remoteBooks, catalog, pendingCatalog 
   const featuredPictureSeries = pictureSeriesCards.slice(0, 4)
   const promoSeries = featuredPictureSeries.find(card => card.entry.key !== continueEntry?.key) ?? featuredPictureSeries[0]
   const promoProgress = promoSeries?.latest?.progress
+  const promoEpisode = episodeLabel(promoSeries?.latest?.book.episode)
 
   function chooseGrade(next: number) {
     setGrade(next)
@@ -303,10 +311,16 @@ export default function Bookshelf({ books, remoteBooks, catalog, pendingCatalog 
   }
 
   const continuePages = continueEntry?.pages ?? 0
-  const continuePage = continueEntry ? Math.min(continueEntry.lastPage + 1, continuePages || continueEntry.lastPage + 1) : 0
-  const continueProgress = continueEntry && continuePages > 0 && continueEntry.lastPage > 0 ? Math.max(2, Math.round(continuePage / continuePages * 100)) : 0
+  // 目录换版后旧进度可能超出当前页数；徽标、进度条和页码统一按实际页数收敛。
+  const continueLastPage = continueEntry
+    ? continueEntry.pages && continueEntry.pages > 0
+      ? Math.min(Math.max(0, continueEntry.lastPage), continueEntry.pages - 1)
+      : Math.max(0, continueEntry.lastPage)
+    : 0
+  const continuePage = continueLastPage + 1
+  const continueProgress = continueEntry && continuePages > 0 && continueLastPage > 0 ? Math.max(2, Math.round(continuePage / continuePages * 100)) : 0
   const continueBadge = continueEntry && continueEntry.lastPage > 0
-    ? continueEntry.kind === 'picture' ? `上次第 ${continueEntry.lastPage + 1} 个跨页` : `上次第 ${continueEntry.lastPage + 1} 页`
+    ? continueEntry.kind === 'picture' ? `上次第 ${continueLastPage + 1} 个跨页` : `上次第 ${continueLastPage + 1} 页`
     : '开始学习'
   const continueChapter = continueRaw
     ? continueRaw.kind === 'online'
@@ -337,7 +351,7 @@ export default function Bookshelf({ books, remoteBooks, catalog, pendingCatalog 
                 <span>{continueChapter}</span>
                 <div className="shelf-continue-progress">
                   <div className="shelf-progress-track" aria-hidden="true"><i style={{ width: `${continueProgress}%` }}/></div>
-                  <small>{continuePages > 0 ? continueEntry.kind === 'picture' ? `第 ${continuePage} / ${continuePages} 个跨页` : `第 ${continuePage} / ${continuePages} 页` : '在线课本'}</small>
+                  <small>{continuePages > 0 ? continueEntry.kind === 'picture' ? `第 ${continuePage} / ${continuePages} 个跨页` : `第 ${continuePage} / ${continuePages} 页` : continueEntry.kind === 'picture' ? `第 ${continueLastPage + 1} 个跨页` : continueEntry.kind === 'online' ? '在线课本' : `第 ${continuePage} 页`}</small>
                 </div>
               </div>
               <button type="button" className="shelf-primary" aria-label={`继续学习 ${continueEntry.title}`} onClick={() => openEntry(continueEntry)}>
@@ -351,7 +365,7 @@ export default function Bookshelf({ books, remoteBooks, catalog, pendingCatalog 
               <div className="shelf-story-copy">
                 <span className="shelf-story-kicker">绘本馆</span>
                 <strong>{promoSeries?.group.name ?? '打开故事绘本'}</strong>
-                <small>{promoSeries ? `${promoSeries.group.episodes.length} 集 · ${promoSeries.display.levelLabel} · ${promoSeries.display.themes.slice(0, 2).join(' / ')}${promoProgress ? ` · 读到第 ${promoSeries.latest?.book.episode ?? 1} 集` : ' · 听故事 · 自己读 · 跟读'}` : '原版插画 · 整集原声 · 逐句高亮'}</small>
+                <small>{promoSeries ? `${promoSeries.group.episodes.length} 集 · ${promoSeries.display.levelLabel} · ${promoSeries.display.themes.slice(0, 2).join(' / ')}${promoProgress ? (promoEpisode ? ` · 读到${promoEpisode}` : ' · 已开始阅读') : ' · 听故事 · 自己读 · 跟读'}` : '原版插画 · 整集原声 · 逐句高亮'}</small>
               </div>
               <div className="shelf-story-actions">
                 <button type="button" className="shelf-story-link" onClick={onLibrary}>全部绘本<ArrowRight size={13}/></button>

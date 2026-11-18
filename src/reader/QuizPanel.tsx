@@ -79,6 +79,17 @@ export default function QuizPanel({ items, pool, onPlay, onResult }: Props) {
     </div>
   }
 
+  // 管理员改完本页词条后题量可能变少，当前题号会越界；
+  // 这里给出重新开始入口，而不是让 question.kind 读取 undefined 崩溃。
+  if (!question) {
+    return <div className="learning-empty">
+      <Headphones size={28}/>
+      <strong>本页练习已更新</strong>
+      <p>词条数量发生了变化，重新开始一组练习即可继续。</p>
+      <button className="quiz-primary" onClick={startRound}><RotateCcw size={16}/>重新开始</button>
+    </div>
+  }
+
   return <div className="quiz-panel">
     <header className="quiz-head">
       <span>{KIND_LABEL[question.kind]}</span>

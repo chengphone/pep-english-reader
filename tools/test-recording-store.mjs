@@ -19,6 +19,9 @@ const { latestRecording, listRecordings, saveRecording } = await import('../src/
 test('corrupt recording metadata is normalized instead of crashing the reader', () => {
   installStore([
     { id: 'ok', profile: 'a', bookId: 'book', itemId: 'item', text: 'hello', mime: 'audio/webm', duration: 2.5, createdAt: 100 },
+    { id: 'null-score', profile: 'a', bookId: 'book', itemId: 'item', text: 'hello', mime: 'audio/webm', duration: 1, score: null, createdAt: 150 },
+    { id: 'string-score', profile: 'a', bookId: 'book', itemId: 'item', text: 'hello', mime: 'audio/webm', duration: 1, score: '88', createdAt: 50 },
+    { id: 'overflow-score', profile: 'a', bookId: 'book', itemId: 'item', text: 'hello', mime: 'audio/webm', duration: 1, score: 250, createdAt: 25 },
     { id: 'missing-duration', profile: 'a', bookId: 'book', itemId: 'item', text: 'hello', mime: 'audio/webm', createdAt: 200 },
     { id: 'missing-time', profile: 'a', bookId: 'book', itemId: 'item', text: 'hello', mime: 'audio/webm', duration: 1 },
     { id: 'string-duration', profile: 'a', bookId: 'book', itemId: 'item', text: 'hello', mime: 'audio/webm', duration: '3', createdAt: 300 },
@@ -28,10 +31,14 @@ test('corrupt recording metadata is normalized instead of crashing the reader', 
     'nope',
   ])
   const rows = listRecordings('a', 'book', 'item')
-  assert.deepEqual(rows.map(row => row.id), ['string-duration', 'missing-duration', 'ok', 'missing-time'])
+  assert.deepEqual(rows.map(row => row.id), ['string-duration', 'missing-duration', 'null-score', 'ok', 'string-score', 'overflow-score', 'missing-time'])
   assert.equal(rows.find(row => row.id === 'missing-duration').duration, 0)
   assert.equal(rows.find(row => row.id === 'missing-time').createdAt, 0)
   assert.equal(rows.find(row => row.id === 'string-duration').duration, 3)
+  // score 为 null 时保持“没有评分”，不能被 Number(null) 变成 0 分。
+  assert.equal(rows.find(row => row.id === 'null-score').score, undefined)
+  assert.equal(rows.find(row => row.id === 'string-score').score, 88)
+  assert.equal(rows.find(row => row.id === 'overflow-score').score, 100)
   assert.equal(latestRecording('a', 'book', 'item').id, 'string-duration')
   assert.equal(latestRecording('b', 'book', 'item'), undefined)
 })

@@ -41,8 +41,8 @@ type Props = {
 // 底部全局播放条：课堂音频和点读共用一套控制，避免同时播放两路声音。
 // 没有活动媒体时整条隐藏，把阅读区上下两端还给课本。
 export default function MediaDock({ state, onToggle, onSeek, onRate, onLoop, onVolume, onMute, onPrev, onNext, onClose }: Props) {
-  const total = Math.max(0, state.duration)
-  const current = Math.max(0, Math.min(state.current, total || state.current))
+  const total = Number.isFinite(state.duration) ? Math.max(0, state.duration) : 0
+  const current = Number.isFinite(state.current) ? Math.max(0, Math.min(state.current, total || state.current)) : 0
   return <section className="global-media-dock" aria-label="全局播放器">
     <button className="global-media-play" aria-label={state.playing ? '暂停' : '播放'} onClick={onToggle}>
       {state.playing ? <Pause size={20}/> : <Play size={20}/>}

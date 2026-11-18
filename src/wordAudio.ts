@@ -99,6 +99,8 @@ async function loadHostedManifest() {
     const manifest = await response.json() as HostedAudioManifest
     if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.items)) throw new Error('Invalid hosted audio list')
     return new Map(manifest.items.flatMap(item => {
+      // 单条 null / 非对象不能拖垮整份音频目录，否则所有网站原音都退回浏览器合成音。
+      if (!item || typeof item !== 'object') return []
       if (typeof item.text !== 'string' || !/^audio\/library\/[a-f0-9]{64}\.(mp3|wav|m4a|ogg)$/i.test(item.file)) return []
       return [[audioKey(item.text), { file: item.file, voice: `网站音频 · ${item.voice ?? manifest.voice ?? 'Aria'}` }] as const]
     }))

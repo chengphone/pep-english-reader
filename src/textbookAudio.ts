@@ -30,7 +30,9 @@ async function validBytes(bytes:ArrayBuffer,digest:string){
  const subtle=globalThis.crypto?.subtle
  if(!subtle)return true
  const result=await subtle.digest('SHA-256',bytes)
- return [...new Uint8Array(result)].map(n=>n.toString(16).padStart(2,'0')).join('')===digest
+ // 文件名允许大写十六进制，摘要本身按小写生成；比较前统一大小写，
+ // 否则大写文件名每次都被判为损坏，原音既不能离线复用也无法播放。
+ return [...new Uint8Array(result)].map(n=>n.toString(16).padStart(2,'0')).join('')===digest.toLowerCase()
 }
 async function load(file:string):Promise<Blob|undefined>{
  const match=file.match(/^audio\/library\/([a-f0-9]{64})\.(mp3|wav|m4a|ogg)$/i)

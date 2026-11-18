@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react
 import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Download, Headphones, Info, Maximize2, Mic, Minimize2, PanelRightClose, PanelRightOpen, Pause, Play, Repeat, Square, Trash2, Volume2 } from 'lucide-react'
 import './PictureReader.css'
 import type { PictureBook, PictureCatalogEntry, PictureMode, PictureSentence } from '../pictureBooks'
-import { hasComprehension, loadPictureBook, markPicturePageComplete, readPictureProgress, writePictureProgress } from '../pictureBooks'
+import { episodeLabel, hasComprehension, loadPictureBook, markPicturePageComplete, readPictureProgress, writePictureProgress } from '../pictureBooks'
 import { useLearningState } from '../reader/learningStore'
 import { deleteRecording, latestRecording, readRecording, saveRecording, type RecordingMeta } from '../reader/recordingStore'
 import { checkPictureOffline, savePictureOffline, type PictureOfflineState } from './offlinePicture'
@@ -470,6 +470,8 @@ export default function PictureReader({
     } catch {
       streamRef.current?.getTracks().forEach(track => track.stop())
       streamRef.current = null
+      // 权限弹窗期间已经翻页或离开时，这次失败不属于当前页，不能把错误显示到新页面。
+      if (!mountedRef.current || requestId !== recordRequestRef.current) return
       setRecordingState('idle')
       setRecordError('无法使用麦克风。请检查浏览器权限；拒绝授权时不会上传任何声音。')
     } finally {
@@ -597,7 +599,7 @@ export default function PictureReader({
       <button type="button" className="pbook-back" onClick={onBack}><ArrowLeft size={17}/><span>返回绘本馆</span></button>
       <div className="pbook-title">
         <strong>{book.manifest.title}</strong>
-        <small>第 {book.manifest.episode} 集 · {book.manifest.levelLabel || LEVELS[book.manifest.level]} · {book.manifest.series}</small>
+        <small>{[episodeLabel(book.manifest.episode), book.manifest.levelLabel || LEVELS[book.manifest.level], book.manifest.series].filter(Boolean).join(' · ')}</small>
       </div>
       <div className="pbook-position">
         <span>第 {pageIndex + 1} / {book.manifest.pages.length} 个跨页</span>
@@ -608,8 +610,8 @@ export default function PictureReader({
         className="pbook-next-episode"
         disabled={!nextEntry}
         onClick={onNextEpisode}
-        title={nextEntry ? `下一集：第 ${nextEntry.episode} 集 · ${nextEntry.title}` : '已经是最后一集'}
-        aria-label={nextEntry ? `下一集：第 ${nextEntry.episode} 集 ${nextEntry.title}` : '已经是最后一集'}
+        title={nextEntry ? `下一集：${[episodeLabel(nextEntry.episode), nextEntry.title].filter(Boolean).join(' · ')}` : '已经是最后一集'}
+        aria-label={nextEntry ? `下一集：${[episodeLabel(nextEntry.episode), nextEntry.title].filter(Boolean).join(' ')}` : '已经是最后一集'}
       >
         <span>下一集</span><ChevronRight size={16}/>
       </button>
@@ -690,7 +692,7 @@ export default function PictureReader({
         <div className="pbook-player" aria-label="整集音频播放器">
           <div className="pbook-player-head">
             <span className="pbook-player-icon" aria-hidden="true"><Headphones size={17}/></span>
-            <span className="pbook-player-title"><strong>整集原声</strong><small title={`第 ${book.manifest.episode} 集 · ${book.manifest.title}`}>第 {book.manifest.episode} 集 · {book.manifest.title}</small></span>
+            <span className="pbook-player-title"><strong>整集原声</strong><small title={[episodeLabel(book.manifest.episode), book.manifest.title].filter(Boolean).join(' · ')}>{[episodeLabel(book.manifest.episode), book.manifest.title].filter(Boolean).join(' · ')}</small></span>
             <div className="pbook-player-actions">
               {hasTimestamps && <button type="button" className="pbook-player-follow" aria-pressed={followAudio} title={followAudio ? '关闭后页面不再跟随音频自动翻页' : '开启后页面跟随音频自动翻到当前句'} onClick={() => setFollowAudio(value => !value)}><BookOpen size={14}/><span>{followAudio ? '跟随中' : '跟随'}</span></button>}
               <button type="button" className="pbook-player-loop" aria-pressed={loop} title="循环整集" onClick={() => setLoop(value => !value)}><Repeat size={15}/><span>循环</span></button>
@@ -715,7 +717,9 @@ export default function PictureReader({
             onPause={() => setAudioPlaying(false)}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={event => {
-              setDuration(event.currentTarget.duration || book.manifest.audioDuration || 0)
+              // 流式音频可能报告 Infinity；这种时长不能进入进度条计算。
+              const total = event.currentTarget.duration
+              setDuration(Number.isFinite(total) && total > 0 ? total : book.manifest.audioDuration ?? 0)
               const pending = pendingSentenceRef.current
               if (!pending) return
               pendingSentenceRef.current = null

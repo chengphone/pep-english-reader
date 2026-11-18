@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, Check, RotateCcw, Sparkles, X } from 'lucide-react'
 import './PictureQuiz.css'
 import type { PictureBook, PictureCatalogEntry, PictureQuestion } from '../pictureBooks'
-import { loadPictureBook, pictureArt, questionsFor } from '../pictureBooks'
+import { episodeLabel, loadPictureBook, pictureArt, questionsFor } from '../pictureBooks'
 
 type QuizMode = 'comprehension' | 'vocabulary'
 
@@ -70,7 +70,7 @@ export default function PictureQuiz({
   return <div className="picture-quiz">
     <header className="pquiz-topbar">
       <button type="button" className="pbook-back" onClick={onBack}><ArrowLeft size={17}/><span>返回阅读</span></button>
-      <div className="pquiz-top-title"><strong>{book.manifest.title}</strong><small>第 {book.manifest.episode} 集 · {actualMode === 'comprehension' ? '故事理解' : '词汇小测'}</small></div>
+      <div className="pquiz-top-title"><strong>{book.manifest.title}</strong><small>{[episodeLabel(book.manifest.episode), actualMode === 'comprehension' ? '故事理解' : '词汇小测'].filter(Boolean).join(' · ')}</small></div>
       <button type="button" className="pquiz-library-link" onClick={onLibrary}>绘本馆<ArrowRight size={14}/></button>
     </header>
 

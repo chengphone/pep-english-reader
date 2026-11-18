@@ -6,7 +6,7 @@ import type { ReaderItem } from './types'
 type Props = {
   bookId: string
   bookTitle: string
-  pageLabel: number
+  pageIndex: number
   pageCount: number
   pool: ReaderItem[]
   onPlay: (item: ReaderItem) => void
@@ -24,14 +24,17 @@ function duration(seconds: number) {
 }
 
 // P2 学情分析：全部数据来自本机学习库，不接入远端统计服务。
-export default function StatsDialog({ bookId, bookTitle, pageLabel, pageCount, pool, onPlay, onClose }: Props) {
+export default function StatsDialog({ bookId, bookTitle, pageIndex, pageCount, pool, onPlay, onClose }: Props) {
   useLearningState()
   const summary = summaryFor()
   const events = eventsFor().filter(event => event.bookId === bookId).slice(0, 10)
   const weak = weakForBook(bookId).slice(0, 5)
   const byId = new Map(pool.map(item => [item.id, item]))
   const maxSeconds = Math.max(60, ...summary.week.map(row => row.seconds))
-  const progress = pageCount ? Math.min(100, Math.round((pageLabel / pageCount) * 100)) : 0
+  // 阅读位置按数组下标计；printedPage 可能从封面之后才开始编号（如 Picture Dictionary），
+  // 用它除以文件页数会把第 10 个跨页显示成 3%。
+  const position = pageCount ? Math.min(pageCount, pageIndex + 1) : 0
+  const progress = pageCount ? Math.round((position / pageCount) * 100) : 0
 
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
@@ -71,7 +74,7 @@ export default function StatsDialog({ bookId, bookTitle, pageLabel, pageCount, p
           </div>
         </section>
         <section className="learning-stat-progress">
-          <header><h3>本书进度</h3><small>{pageLabel} / {pageCount} 页 · {progress}%</small></header>
+          <header><h3>本书进度</h3><small>第 {position} / {pageCount} 页 · {progress}%</small></header>
           <div className="learning-progress-track"><i style={{ width: `${progress}%` }}/></div>
         </section>
         {weak.length > 0 && <section className="learning-stat-weak">

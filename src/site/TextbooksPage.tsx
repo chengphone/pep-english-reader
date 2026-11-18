@@ -50,6 +50,12 @@ export default function TextbooksPage({
   const onlineResults = catalog.filter(book => !needle || `${grades[book.grade]} ${termLabel(book.term)} ${onlineBookEdition(book)} 人教 PEP ${book.grade}`.toLowerCase().includes(needle))
   const currentOnline = onlineResults.filter(book => book.grade === grade)
   const currentPending = pendingCatalog.filter(book => book.grade === grade)
+  // 搜索时跨年级展示结果；否则搜到四年级课本却因年级标签停在三年级而看不到，
+  // 页面却显示“共 N 本可打开”。没有搜索时仍按年级分页。
+  const visibleOnline = needle ? onlineResults : currentOnline
+  const visiblePending = needle
+    ? pendingCatalog.filter(book => `${grades[book.grade]}${termLabel(book.term)} ${book.edition} ${book.message}`.toLowerCase().includes(needle))
+    : currentPending
   const total = remoteResults.length + onlineResults.length
 
   return <div className="site-page textbooks-page">
@@ -98,14 +104,15 @@ export default function TextbooksPage({
         <div><span className="page-kicker">PEP</span><h2 id="textbook-pep">人教 PEP</h2></div>
         <p>三至九年级 · 上下册</p>
       </header>
-      <div className="grade-tabs textbook-grades" role="group" aria-label="选择年级">
+      {!needle && <div className="grade-tabs textbook-grades" role="group" aria-label="选择年级">
         {Object.entries(grades).map(([value, label]) => <button key={value} type="button" className={`grade-tab ${grade === Number(value) ? 'selected' : ''}`} aria-pressed={grade === Number(value)} onClick={() => { setGrade(Number(value)); try { localStorage.setItem('pep:shelf-grade', value) } catch { /* 忽略 */ } }}>{label}</button>)}
-      </div>
+      </div>}
+      {needle && <p className="library-classification-note">搜索结果已跨全部年级显示。</p>}
       <div className="textbook-grid">
-        {currentOnline.map(book => <TextbookCard key={book.id} title={onlineLabel(book)} subtitle={`人教 PEP · ${book.grade} 年级`} online={book} onOpen={() => onOnline(book.id)}/>)}
-        {currentPending.map(book => <TextbookCard key={`${book.grade}-${book.term}-pending`} title={`${grades[book.grade]}${termLabel(book.term)} ${book.edition}`} subtitle={book.message} online={book} pending/>)}
+        {visibleOnline.map(book => <TextbookCard key={book.id} title={onlineLabel(book)} subtitle={`人教 PEP · ${book.grade} 年级`} online={book} onOpen={() => onOnline(book.id)}/>)}
+        {visiblePending.map(book => <TextbookCard key={`${book.grade}-${book.term}-pending`} title={`${grades[book.grade]}${termLabel(book.term)} ${book.edition}`} subtitle={book.message} online={book} pending/>)}
       </div>
-      {!currentOnline.length && !currentPending.length && <div className="series-empty">这个年级暂时没有可用课本。</div>}
+      {!visibleOnline.length && !visiblePending.length && <div className="series-empty">{needle ? '没有匹配的 PEP 课本。' : '这个年级暂时没有可用课本。'}</div>}
     </section>
   </div>
 }

@@ -13,7 +13,8 @@ import ReadingViewTools from './ReadingViewTools'
 import StatsDialog from './StatsDialog'
 import TeacherModeDialog from './TeacherModeDialog'
 import { setTeacherMode, useTeacherMode } from './adminMode'
-import { activeTocIndex, buildBookToc } from './tocEntries'
+import { sanitizeAudioRange } from './audioRange'
+import { activeTocIndex, buildBookToc, pageIndexForPageNumber } from './tocEntries'
 import { preloadAudio, usePageAudio } from './usePageAudio'
 import { useReadingFullscreen } from './useReadingFullscreen'
 import { useStudyTimer } from './useStudyTimer'
@@ -261,7 +262,10 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
     setClean(true)
   }
   function selectTocPage(target: number) {
-    onPage(target - 1)
+    // 目录给的是物理页码，不是数组下标；页码跳号时不能简单减一。
+    const index = pageIndexForPageNumber(book.manifest.pages, target)
+    if (index === undefined) return
+    onPage(index)
     if (narrow()) setTocOpen(false)
   }
   async function leave(action: () => void) {
@@ -350,7 +354,8 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
     if (!page || savingItems) return
     setSavingItems(true)
     try {
-      await onSaveItems(page.page, draftItems)
+      // 手填的区间先按播放规则清理，清单里不留下负数或起点大于终点的数据。
+      await onSaveItems(page.page, draftItems.map(sanitizeAudioRange))
       setHotspotEditing(false)
       setDraftItems([])
     } finally {
@@ -359,12 +364,12 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
   }
   function exportPageItems() {
     if (!page) return
-    downloadJson(`${book.id}-page-${page.page}-items.json`, { [page.page]: draftItems })
+    downloadJson(`${book.id}-page-${page.page}-items.json`, { [page.page]: draftItems.map(sanitizeAudioRange) })
   }
   function exportAllItems() {
     const data: Record<string, ReaderItem[]> = {}
     for (const row of book.manifest.pages) {
-      if (row.items.length) data[row.page] = row.page === page?.page && hotspotEditing ? draftItems : row.items
+      if (row.items.length) data[row.page] = (row.page === page?.page && hotspotEditing ? draftItems : row.items).map(sanitizeAudioRange)
     }
     downloadJson(`${book.id}-items.json`, data)
   }
@@ -564,7 +569,7 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
     </div>}
     {video && <PageVideoDialog video={video} onClose={() => setVideo(null)}/>}
     {bookmarksOpen && <BookmarksDialog bookId={book.id} page={pageIndex} label={String(pageNumber)} section={section} onGoPage={onPage} onClose={() => setBookmarksOpen(false)}/>}
-    {statsOpen && <StatsDialog bookId={book.id} bookTitle={book.manifest.title} pageLabel={pageNumber} pageCount={count} pool={pool} onPlay={previewItem} onClose={() => setStatsOpen(false)}/>}
+    {statsOpen && <StatsDialog bookId={book.id} bookTitle={book.manifest.title} pageIndex={pageIndex} pageCount={count} pool={pool} onPlay={previewItem} onClose={() => setStatsOpen(false)}/>}
     {offlineOpen && <OfflineDialog book={book} onClose={() => setOfflineOpen(false)}/>}
     {teacherModeOpen && <TeacherModeDialog onClose={() => setTeacherModeOpen(false)}/>}
     {editing && <div className="reading-dialog-backdrop"><section className="reading-translation-dialog" role="dialog" aria-modal="true" aria-labelledby="reader-translation-title"><button aria-label="关闭翻译编辑" className="reading-dialog-close" disabled={saving} onClick={() => setEditing(false)}><X size={21}/></button><h2 id="reader-translation-title">编辑中文释义</h2><p>{selected?.text}</p><textarea aria-label="中文翻译" value={draft} onChange={event => setDraft(event.target.value)} autoFocus/>{saveError && <p role="alert">{saveError}</p>}<div><button disabled={saving} onClick={() => setEditing(false)}>取消</button><button className="reading-page-play" disabled={saving} onClick={() => void save()}>{saving ? '正在保存…' : '保存翻译'}</button></div></section></div>}

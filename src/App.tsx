@@ -5,6 +5,7 @@ import Bookshelf from './Bookshelf'
 import OnlineReader from './reader/OnlineReader'
 import RouteErrorBoundary from './RouteErrorBoundary'
 import { appUpdateReady, subscribeAppUpdates, reloadUpdatedApp } from './appUpdates'
+import { assetObjectUrl, revokeBookObjectUrls } from './assetUrls'
 import { renameMaterialBook } from './vocabularyStorage'
 import { normalizeReaderManifest } from './libraryValidation'
 import { buildTextHotspots, buildOcrHotspots, HOTSPOT_VERSION } from './hotspotExtraction'
@@ -60,8 +61,12 @@ function PictureRouteError({ title, message, onRetry, onBack }: { title: string;
   </div>
 }
 
-const objectUrls = new Map<string, string>()
-function assetUrl(book: LocalBook | null, path?: string) { if (!book || !path) return ''; const blob = book.assets[path]; if (!blob) return path; const key = `${book.id}:${path}`; if (!objectUrls.has(key)) objectUrls.set(key, URL.createObjectURL(blob)); return objectUrls.get(key)! }
+function assetUrl(book: LocalBook | null, path?: string) {
+  if (!book || !path) return ''
+  const blob = book.assets[path]
+  if (!blob) return path
+  return assetObjectUrl(book.id, path, blob)
+}
 
 function dbOpen() { return new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(DB_NAME, 2); r.onupgradeneeded = () => { if(!r.result.objectStoreNames.contains('books'))r.result.createObjectStore('books', { keyPath: 'id' }); if(!r.result.objectStoreNames.contains('units'))r.result.createObjectStore('units',{keyPath:'id'}) }; r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) }
 function mimeType(path: string) { const ext = path.split('.').pop()?.toLowerCase(); return ({ svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg' } as Record<string,string>)[ext ?? ''] ?? 'application/octet-stream' }
@@ -151,7 +156,7 @@ export default function App() {
   }
   async function importPdf(file:File){notify('正在读取 PDF…','progress');const pdfjs=await import('pdfjs-dist');const worker=await import('pdfjs-dist/build/pdf.worker.min.mjs?url');pdfjs.GlobalWorkerOptions.workerSrc=worker.default;const source=file.slice(0,file.size,'application/pdf');const doc=await pdfjs.getDocument({iccUrl:import.meta.env.BASE_URL+'pdfjs/iccs/',cMapUrl:import.meta.env.BASE_URL+'pdfjs/cmaps/',cMapPacked:true,standardFontDataUrl:import.meta.env.BASE_URL+'pdfjs/standard_fonts/',wasmUrl:import.meta.env.BASE_URL+'pdfjs/wasm/',data:await source.arrayBuffer(),isOffscreenCanvasSupported:false,isImageDecoderSupported:false}).promise;const assets:Record<string,Blob>={'source.pdf':source};const pages:Page[]=[];let ocrWorker:any=null;for(let n=1;n<=doc.numPages;n++){const p=await doc.getPage(n);const base=p.getViewport({scale:1});const scale=Math.min(1.8,1300/base.width);const viewport=p.getViewport({scale});const canvas=document.createElement('canvas');canvas.width=Math.round(viewport.width);canvas.height=Math.round(viewport.height);const ctx=canvas.getContext('2d');if(!ctx)throw new Error('无法创建 PDF 页面画布');await p.render({canvas,canvasContext:ctx,viewport}).promise;const textContent=await p.getTextContent();const items:Item[]=buildTextHotspots(textContent,viewport,n);if(!items.length){try{if(!ocrWorker){const tesseract=await import('tesseract.js');ocrWorker=await tesseract.createWorker('eng')}const result=await ocrWorker.recognize(canvas,{}, {blocks:true});const ocrWords=(result.data.blocks??[]).flatMap((b:any)=>b.paragraphs.flatMap((p:any)=>p.lines.flatMap((l:any)=>l.words)));items.push(...buildOcrHotspots(ocrWords,canvas.width,canvas.height,n))}catch(e){console.warn('OCR unavailable on page',n,e)}}pages.push({page:n,printedPage:n,image:`source.pdf#${n}`,items,hotspotVersion:HOTSPOT_VERSION});canvas.width=0;canvas.height=0;notify(`正在识别 PDF ${n}/${doc.numPages} · 已发现 ${pages.reduce((sum,x)=>sum+x.items.length,0)} 个点读区域…`,'progress')}if(ocrWorker)await ocrWorker.terminate();const appendix=await extractVocabularyAppendix(doc);const autoUnits=parseVocabularyAppendix(appendix.raw,file.name.replace(/\.pdf$/i,''));await persistAppendixUnits(autoUnits,file.name.replace(/\.pdf$/i,''));invalidateTranslationGlossary(file.name.replace(/\.pdf$/i,''));const manifest:Manifest={schemaVersion:1,bookId:localPdfId(),title:file.name.replace(/\.pdf$/i,''),publisherId:'local',pages};const book={id:manifest.bookId,manifest,assets};await putBook(book);setBooks(await allBooks());setActive(book);setMode('shelf');setOnline(false);setPageIdx(0);const total=pages.reduce((sum,x)=>sum+x.items.length,0);notify(total?`已导入并生成 ${total} 个英文点读热区；末尾词表与表达已提取 ${autoUnits.length} 个分组，可进入听写练习。`:'PDF 页面已导入，但未识别到文字；请检查文件是否为扫描版。','success')}
   async function renameBook(id:string,name:string){const book=books.find(item=>item.id===id);if(!book)throw new Error('教材已不存在。');await renameMaterialBook(book.manifest.title,name,id);invalidateTranslationGlossary(book.manifest.title);invalidateTranslationGlossary(name);setBooks(await allBooks());notify('教材名称已保存，对应听写资料已同步更新','success')}
-  async function remove(book: LocalBook) { stop(); await dropBook(book.id); setBooks(await allBooks()); if (active?.id === book.id) setActive(null); setMessage('已移除本机教材') }
+  async function remove(book: LocalBook) { stop(); await dropBook(book.id); revokeBookObjectUrls(book.id); setBooks(await allBooks()); if (active?.id === book.id) setActive(null); setMessage('已移除本机教材') }
   async function tryDemo() { try { const response = await fetch(import.meta.env.BASE_URL+'demo-pep-sample.zip'); if (!response.ok) throw new Error('原创样例尚未生成，请运行 npm run demo:build'); const blob = await response.blob(); await importFile(new File([blob], 'demo-pep-sample.zip')) } catch (e) { setMessage(e instanceof Error ? e.message : '无法载入样例') } }
   const onlineSelection=ONLINE_BOOKS.find(book=>book.id===onlineId)??ONLINE_BOOKS[0]
   const img = assetUrl(active, page?.image)

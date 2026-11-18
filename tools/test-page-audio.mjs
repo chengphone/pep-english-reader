@@ -102,3 +102,14 @@ test('a rejected play promise after stop cannot change the stopped state', async
   assert.equal(stateCells[4].value, '')
   deferredResume = undefined
 })
+
+test('a non-finite duration in the manifest never reaches the player state', () => {
+  stateCells = []
+  stateIndex = 0
+  players = []
+  const resource = { id: 'bad-duration', kind: 'audio', title: 'Bad', src: 'bad.mp3', duration: Number.NaN }
+  const controller = audioModule.usePageAudio({ resources: [resource] })
+  controller.toggle(resource)
+  // useState 顺序：activeResource, playing, current, duration, error...
+  assert.equal(stateCells[3].value, 0)
+})

@@ -67,3 +67,18 @@ test('separate tabs merge page visits and clear events invalidate stale state', 
   assert.equal(persisted.profiles.a.name, '新档案')
   assert.deepEqual(persisted.lastPages.a, {})
 })
+
+test('corrupt last-chapter JSON is ignored while legacy plain text still reads', () => {
+  // 合法 JSON 但不是章节记录：不能把原始 JSON 当章节名显示。
+  values.set('pep:last-chapter:a:no-at', '{"label":"Unit 2"}')
+  assert.equal(firstTab.readLastChapter('no-at', 'a'), undefined)
+  values.set('pep:last-chapter:a:null', 'null')
+  assert.equal(firstTab.readLastChapter('null', 'a'), undefined)
+  values.set('pep:last-chapter:a:array', '["Unit 3"]')
+  assert.equal(firstTab.readLastChapter('array', 'a'), undefined)
+  // 早期版本直接存标题文本，解析失败时仍按纯文本读取。
+  values.set('pep:last-chapter:a:legacy', 'Lesson 3 Aa')
+  assert.deepEqual(firstTab.readLastChapter('legacy', 'a'), { label: 'Lesson 3 Aa', at: 0 })
+  values.set('pep:last-chapter:a:good', JSON.stringify({ label: 'Unit 4', at: 42 }))
+  assert.deepEqual(firstTab.readLastChapter('good', 'a'), { label: 'Unit 4', at: 42 })
+})

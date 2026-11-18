@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ArrowRight, BookOpen, ClipboardCheck, Headphones, Pencil, Search, Sparkles, X } from 'lucide-react'
 import type { PictureCatalogEntry } from '../pictureBooks'
-import { pictureArt } from '../pictureBooks'
+import { episodeLabel, pictureArt } from '../pictureBooks'
 import './SitePages.css'
 
 export default function PracticeCenter({
@@ -25,7 +25,7 @@ export default function PracticeCenter({
   const needle = query.trim().toLowerCase()
   const quizBooks = useMemo(() => pictureBooks
     .filter(entry => (entry.vocabulary ?? 0) > 1)
-    .filter(entry => !needle || `${entry.title} ${entry.series} 第${entry.episode}集`.toLowerCase().includes(needle))
+    .filter(entry => !needle || [entry.title, entry.series, episodeLabel(entry.episode)].filter(Boolean).join(' ').toLowerCase().includes(needle))
     .sort((left, right) => (left.episode ?? 0) - (right.episode ?? 0) || left.title.localeCompare(right.title)), [needle, pictureBooks])
   const comprehensionBooks = pictureBooks.filter(entry => (entry.quiz ?? 0) > 0)
   const firstPicture = pictureBooks[0]
@@ -88,7 +88,7 @@ export default function PracticeCenter({
           <div className="quiz-book-cover" aria-hidden="true"><img src={pictureArt(entry)} alt="" loading="lazy"/></div>
           <div className="quiz-book-copy">
             <strong>{entry.title}</strong>
-            <small>第 {entry.episode} 集 · {entry.levelLabel} · {entry.vocabulary ?? 0} 个生词{entry.quiz ? ` · ${entry.quiz} 道理解题` : ''}</small>
+            <small>{[episodeLabel(entry.episode), entry.levelLabel, `${entry.vocabulary ?? 0} 个生词${entry.quiz ? ` · ${entry.quiz} 道理解题` : ''}`].filter(Boolean).join(' · ')}</small>
           </div>
           <div className="quiz-book-actions">
             {entry.quiz ? <button type="button" className="quiz-action is-primary" onClick={() => onQuiz(entry.id, 'comprehension')}>阅读理解</button> : null}
@@ -107,7 +107,7 @@ export default function PracticeCenter({
       <div className="practice-comprehension-grid">
         {comprehensionBooks.map(entry => <button key={entry.id} type="button" className="practice-comprehension-card" onClick={() => onQuiz(entry.id, 'comprehension')}>
           <span className="practice-comprehension-art" aria-hidden="true"><img src={pictureArt(entry)} alt=""/></span>
-          <span><strong>{entry.title}</strong><small>第 {entry.episode} 集 · {entry.quiz} 道题</small></span>
+          <span><strong>{entry.title}</strong><small>{[episodeLabel(entry.episode), `${entry.quiz} 道题`].filter(Boolean).join(' · ')}</small></span>
           <Sparkles size={17}/>
         </button>)}
       </div>

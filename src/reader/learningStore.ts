@@ -129,13 +129,17 @@ export function readLastChapter(bookId: string, profile = activeProfile()): { la
   try {
     const raw = localStorage.getItem(CHAPTER_KEY + profile + ':' + bookId)
     if (!raw) return undefined
+    let parsed = false
     try {
       const value = JSON.parse(raw)
+      parsed = true
       if (value && typeof value.label === 'string' && Number.isFinite(value.at)) return { label: value.label, at: value.at }
     } catch {
       // 兼容早期只保存标题文本的格式。
     }
-    return { label: raw, at: 0 }
+    // 合法 JSON 却不是章节记录（null、数组或缺少 at），不能把原始 JSON
+    // 当成章节名显示在“继续学习”卡片上。
+    return parsed ? undefined : { label: raw, at: 0 }
   } catch {
     return undefined
   }

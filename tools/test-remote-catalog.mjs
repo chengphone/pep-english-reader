@@ -94,6 +94,34 @@ test('malformed remote and local hotspots do not break a usable page', async () 
   assert.equal(readRemotePageItems('demo', 1), undefined)
 })
 
+test('resources with invalid durations are dropped from a remote manifest', async () => {
+  installBase()
+  // JSON 里的 1e999 会解析成 Infinity；NaN 和负数同样不能进入播放器状态。
+  const fixture = {
+    schemaVersion: 1,
+    bookId: 'demo',
+    title: 'Demo',
+    publisherId: 'test',
+    pages: [{
+      page: 1,
+      image: 'page.jpg',
+      items: [],
+      resources: [
+        { id: 'inf', kind: 'audio', src: 'a.mp3', duration: Number.POSITIVE_INFINITY },
+        { id: 'negative', kind: 'audio', src: 'b.mp3', duration: -3 },
+        { id: 'ok', kind: 'audio', src: 'c.mp3', duration: 12.5 },
+        { id: 'no-duration', kind: 'video', src: 'd.mp4' },
+      ],
+    }],
+  }
+  // JSON.stringify 会把 Infinity 写成 null，这里手动还原成 JSON 数字 1e999。
+  const raw = JSON.stringify(fixture).replace('"duration":null', '"duration":1e999')
+  globalThis.fetch = async () => new Response(raw, { status: 200, headers: { 'content-type': 'application/json' } })
+  const book = await loadRemoteBook({ id: 'demo', title: 'Demo', manifest: 'https://example.test/book.json' })
+  assert.deepEqual(book.manifest.pages[0].resources.map(resource => resource.id), ['ok', 'no-duration'])
+  assert.equal(book.manifest.pages[0].resources[0].duration, 12.5)
+})
+
 test('a failed default catalog reports an error instead of pretending the library is empty', async () => {
   installBase()
   globalThis.fetch = async () => { throw new TypeError('Failed to fetch') }
@@ -133,6 +161,26 @@ test('an explicit custom catalog still surfaces its own failures', async () => {
   installBase('https://example.test/pep-english-reader/?catalog=https://example.test/custom.json')
   globalThis.fetch = async () => { throw new TypeError('Failed to fetch') }
   await assert.rejects(loadRemoteCatalogDetailed(), /网络请求失败/)
+})
+
+test('an explicitly cleared remote page keeps its empty hotspot override', async () => {
+  installBase()
+  globalThis.fetch = async () => jsonResponse({
+    schemaVersion: 1,
+    bookId: 'demo',
+    title: 'Demo',
+    publisherId: 'test',
+    pages: [{ page: 1, image: 'page.jpg', items: [{ id: 'valid', text: 'hello', order: 0, rects: [] }] }],
+  })
+  assert.equal(writeRemotePageItems('demo', 1, []), true)
+  assert.deepEqual(readRemotePageItems('demo', 1), [])
+  // 清空后重新打开教材，这一页不应再被清单里的原始热区覆盖。
+  const cleared = await loadRemoteBook({ id: 'demo', title: 'Demo', manifest: 'https://example.test/book.json' })
+  assert.deepEqual(cleared.manifest.pages[0].items, [])
+  // 再存回一个热区时正常覆盖。
+  assert.equal(writeRemotePageItems('demo', 1, [{ id: 'only', text: 'x', order: 1, rects: [] }]), true)
+  const restored = await loadRemoteBook({ id: 'demo', title: 'Demo', manifest: 'https://example.test/book.json' })
+  assert.deepEqual(restored.manifest.pages[0].items.map(item => item.id), ['only'])
 })
 
 test('remote storage writes report when localStorage rejects them', () => {

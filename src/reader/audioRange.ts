@@ -9,6 +9,17 @@ export function resolveAudioRange(item:Pick<ReaderItem,'audioStart'|'audioEnd'>)
  const end=item.audioEnd
  return typeof end==='number'&&Number.isFinite(end)&&end>start?{start,end}:null
 }
+// 保存和导出前清理手填区间：与播放器的回退规则保持一致，不把负数、NaN
+// 或终点不大于起点的区间写进清单，否则列表里显示的区间和实际播放会不一致。
+export function sanitizeAudioRange<T extends Pick<ReaderItem,'audioStart'|'audioEnd'>>(item:T):T{
+ const range=resolveAudioRange(item)
+ if(range)return{...item,audioStart:range.start,audioEnd:range.end}
+ if(item.audioStart===undefined&&item.audioEnd===undefined)return item
+ const next:Pick<ReaderItem,'audioStart'|'audioEnd'> & T={...item}
+ delete next.audioStart
+ delete next.audioEnd
+ return next
+}
 // 进度按片段计算：current/total 都是片段内秒数，总长受音频实际时长截断。
 // 传入 null 区间时退化为整段进度，保持旧行为。
 export function rangeProgress(currentTime:number,range:AudioRange|null,duration:number):{current:number;total:number}{

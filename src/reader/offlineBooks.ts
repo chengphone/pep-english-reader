@@ -21,10 +21,32 @@ export type OfflineProgress = {
   current: string
 }
 
+// localStorage 里的离线记录来自旧版本或被手工改动时可能是任意 JSON。
+// 逐条校验，坏记录直接忽略，不能让 OfflineDialog 读 .urls.length 时崩溃。
+function normalizeMeta(bookId: string, value: unknown): OfflineMeta | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const row = value as Partial<OfflineMeta>
+  if (!Array.isArray(row.urls)) return undefined
+  const urls = [...new Set(row.urls.filter((url): url is string => typeof url === 'string' && url.length > 0))]
+  return {
+    bookId,
+    title: typeof row.title === 'string' && row.title.trim() ? row.title.trim() : bookId,
+    cachedAt: Number.isFinite(Number(row.cachedAt)) ? Number(row.cachedAt) : 0,
+    bytes: Number.isFinite(Number(row.bytes)) ? Math.max(0, Number(row.bytes)) : 0,
+    urls,
+  }
+}
+
 function readAll(): Record<string, OfflineMeta> {
   try {
     const value = JSON.parse(localStorage.getItem(META_KEY) ?? '{}')
-    return value && typeof value === 'object' ? value : {}
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+    const out: Record<string, OfflineMeta> = {}
+    for (const [bookId, row] of Object.entries(value)) {
+      const meta = normalizeMeta(bookId, row)
+      if (meta) out[bookId] = meta
+    }
+    return out
   } catch {
     return {}
   }

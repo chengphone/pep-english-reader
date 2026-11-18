@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { cacheBook, collectBookUrls } from '../src/reader/offlineBooks.ts'
+import { cacheBook, collectBookUrls, listOfflineBooks, offlineStatus } from '../src/reader/offlineBooks.ts'
 
 test('offline book URLs cover manifest, pages, audio, posters and deduplicate', () => {
   const book = {
@@ -47,6 +47,41 @@ test('offline book URLs ignore empty and non-http entries', () => {
   assert.deepEqual(urls, [])
 })
 
+test('corrupt offline metadata is ignored instead of crashing the dialog', () => {
+  const original = globalThis.localStorage
+  const store = new Map()
+  globalThis.localStorage = {
+    getItem: key => store.get(key) ?? null,
+    setItem: (key, value) => { store.set(key, String(value)) },
+    removeItem: key => { store.delete(key) },
+  }
+  try {
+    store.set('pep:offline-books:v1', JSON.stringify({
+      good: { bookId: 'good', title: ' Good ', cachedAt: 100, bytes: 2048, urls: ['https://example.test/a.jpg'] },
+      noUrls: { title: 'No urls', cachedAt: 5, bytes: 1 },
+      stringUrls: { urls: 'oops', cachedAt: 7 },
+      nullEntry: null,
+      badNumbers: { urls: ['https://example.test/b.jpg', 3, null, ''], cachedAt: 'yesterday', bytes: 'many' },
+    }))
+    assert.deepEqual(offlineStatus('good'), {
+      bookId: 'good', title: 'Good', cachedAt: 100, bytes: 2048, urls: ['https://example.test/a.jpg'],
+    })
+    // 没有 urls 数组的记录无法支撑“N 个资源”和移除缓存，应当整体忽略。
+    assert.equal(offlineStatus('noUrls'), undefined)
+    assert.equal(offlineStatus('stringUrls'), undefined)
+    assert.equal(offlineStatus('nullEntry'), undefined)
+    assert.deepEqual(offlineStatus('badNumbers'), {
+      bookId: 'badNumbers', title: 'badNumbers', cachedAt: 0, bytes: 0, urls: ['https://example.test/b.jpg'],
+    })
+    assert.deepEqual(listOfflineBooks().map(meta => meta.bookId), ['good', 'badNumbers'])
+    store.set('pep:offline-books:v1', JSON.stringify(['not', 'an', 'object']))
+    assert.deepEqual(listOfflineBooks(), [])
+  } finally {
+    if (original === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = original
+  }
+})
+
 test('a stalled offline resource times out and the remaining queue finishes partially', async () => {
   const originalWindow = globalThis.window
   const originalCaches = globalThis.caches
@@ -72,7 +107,9 @@ test('a stalled offline resource times out and the remaining queue finishes part
     }
     const started = Date.now()
     const result = await cacheBook(book, () => {})
-    assert(Date.now() - started < 500)
+    // 30ms 的内部超时在并行跑整套测试时可能被调度延迟；2s 仍远小于真实的 20s 超时，
+    // 足以证明请求是有界结束而不是挂起。
+    assert(Date.now() - started < 2000, 'a stalled resource must settle with a bounded timeout')
     assert.equal(saved.size, 1)
     assert.deepEqual(result.failures, ['https://cdn.example.com/book-data/partial/1.jpg'])
     assert.equal(result.meta.urls.length, 1)

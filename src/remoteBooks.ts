@@ -18,7 +18,7 @@ function isResource(value: unknown): value is ReaderResource {
     (value.title === undefined || typeof value.title === 'string') &&
     (value.subtitle === undefined || typeof value.subtitle === 'string') &&
     (value.track === undefined || typeof value.track === 'number') &&
-    (value.duration === undefined || typeof value.duration === 'number') &&
+    (value.duration === undefined || (typeof value.duration === 'number' && Number.isFinite(value.duration) && value.duration >= 0)) &&
     (value.poster === undefined || typeof value.poster === 'string') &&
     (value.continuous === undefined || typeof value.continuous === 'boolean') &&
     (value.startAt === undefined || (typeof value.startAt === 'number' && Number.isFinite(value.startAt) && value.startAt >= 0))
@@ -215,6 +215,9 @@ export function readRemotePageItems(bookId: string, page: number): ReaderItem[] 
       order: Number.isFinite(item.order) ? item.order : 0,
       rects: item.rects.filter(isRect),
     }))
+    // 管理员清空整页热区后存的是空数组，这是有效覆盖，不能退回清单里的原始热区；
+    // 但如果数组里全是损坏条目，仍按无覆盖处理。
+    if (!value.length) return []
     return items.length ? items : undefined
   } catch {
     return undefined
@@ -224,8 +227,8 @@ export function readRemotePageItems(bookId: string, page: number): ReaderItem[] 
 export function writeRemotePageItems(bookId: string, page: number, items: ReaderItem[]): boolean {
   const key = ITEMS_KEY + bookId + ':' + page
   try {
-    if (!items.length) localStorage.removeItem(key)
-    else localStorage.setItem(key, JSON.stringify(items))
+    // 空数组也要写入，用来表示“这一页被明确清空”，而不是删除后恢复默认热区。
+    localStorage.setItem(key, JSON.stringify(items))
     return true
   } catch {
     // 存储失败时仍然让当前页面使用内存中的修改，但调用方需要知道没有落盘。

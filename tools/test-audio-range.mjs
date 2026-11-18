@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { resolveAudioRange, rangeProgress, prepareAudioRange, formatAudioTime, formatAudioRange } from '../src/reader/audioRange.ts'
+import { resolveAudioRange, sanitizeAudioRange, rangeProgress, prepareAudioRange, formatAudioTime, formatAudioRange } from '../src/reader/audioRange.ts'
 import { normalizeReaderManifest } from '../src/libraryValidation.ts'
 
 class FakePlayer {
@@ -90,4 +90,22 @@ assert.deepEqual(normalizeReaderManifest(reversed).pages[0].items[0],oldManifest
 const invalid=structuredClone(oldManifest);invalid.pages[0].items[0].audioStart='1'
 assert.throws(()=>normalizeReaderManifest(invalid))
 assert.throws(()=>normalizeReaderManifest({...oldManifest,pages:[{...oldManifest.pages[0],items:[{...oldManifest.pages[0].items[0],audioEnd:-1}]}]}))
-console.log('Passed: clip start/end parsing, seek gating, stop at segment end, legacy full-audio behavior, segment progress, old manifest compatibility')
+
+// 保存/导出前清理手填区间：只保留播放器真正会用的值，其余字段原样。
+{
+ const item={id:'i1',text:'Hello',order:1,rects:[[0,0,1,1]],audio:'audio/1.mp3'}
+ assert.deepEqual(sanitizeAudioRange({...item,audioStart:3,audioEnd:5}),{...item,audioStart:3,audioEnd:5})
+ assert.deepEqual(sanitizeAudioRange({...item,audioEnd:2}),{...item,audioStart:0,audioEnd:2})
+ const negative=sanitizeAudioRange({...item,audioStart:-3,audioEnd:5})
+ assert.equal(negative.audioStart,0);assert.equal(negative.audioEnd,5)
+ const nanStart=sanitizeAudioRange({...item,audioStart:Number.NaN,audioEnd:5})
+ assert.equal(nanStart.audioStart,0);assert.equal(nanStart.audioEnd,5)
+ const reversed=sanitizeAudioRange({...item,audioStart:5,audioEnd:3})
+ assert.equal('audioStart' in reversed,false);assert.equal('audioEnd' in reversed,false)
+ assert.deepEqual(reversed,item)
+ const startOnly=sanitizeAudioRange({...item,audioStart:2})
+ assert.equal('audioStart' in startOnly,false);assert.equal('audioEnd' in startOnly,false)
+ const plain=sanitizeAudioRange(item)
+ assert.equal(plain,item,'无需清理时应原样返回同一对象')
+}
+console.log('Passed: clip start/end parsing, seek gating, stop at segment end, legacy full-audio behavior, segment progress, old manifest compatibility, saving hotspot ranges')

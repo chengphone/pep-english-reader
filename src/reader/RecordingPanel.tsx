@@ -36,8 +36,10 @@ function speechConstructor() {
 }
 
 function formatClock(seconds: number) {
-  const safe = Math.max(0, seconds)
-  return `0:${Math.floor(safe).toString().padStart(2, '0')}.${Math.floor((safe % 1) * 10)}`
+  const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0)
+  // 按“十分之一秒”取整，避免 5.3 秒因浮点误差显示成 5.2；超过一分钟时进位到分。
+  const tenths = Math.floor(safe * 10 + 1e-6)
+  return `${Math.floor(tenths / 600)}:${String(Math.floor(tenths / 10) % 60).padStart(2, '0')}.${tenths % 10}`
 }
 
 function formatDate(stamp: number) {

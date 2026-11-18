@@ -109,3 +109,36 @@ test('a stalled picture file times out and the rest of the queue completes as pa
     env.restore()
   }
 })
+
+test('already-cached picture files still count when refreshing them fails', async () => {
+  const env = installEnvironment(async () => { throw new TypeError('network down') })
+  try {
+    const book = makeBook()
+    // 上次保存过一个文件后服务器掉线：它仍在缓存里，重试失败不能让进度退回 0。
+    env.values.set(book.manifestUrl, new Response('cached'))
+    const states = []
+    const state = await savePictureOffline(book, next => states.push(next))
+    assert.equal(state.saved, 1)
+    assert.equal(state.total, 4)
+    assert.equal(state.complete, false)
+    assert.equal(states.at(-1).saved, 1)
+    assert.equal((await checkPictureOffline(book)).saved, 1)
+  } finally {
+    env.restore()
+  }
+})
+
+test('a failed refresh does not report an already complete cache as partial', async () => {
+  const env = installEnvironment(async () => { throw new TypeError('network down') })
+  try {
+    const book = makeBook()
+    for (const url of [book.manifestUrl, book.manifest.audio, book.manifest.cover, book.manifest.pages[0].image]) {
+      env.values.set(url, new Response('cached'))
+    }
+    const state = await savePictureOffline(book, () => {})
+    assert.equal(state.saved, state.total)
+    assert.equal(state.complete, true)
+  } finally {
+    env.restore()
+  }
+})

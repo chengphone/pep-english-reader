@@ -100,6 +100,14 @@ export function dayKey(time = Date.now()) {
   return `${date.getFullYear()}-${month}-${day}`
 }
 
+// 连续天数按本地日历日递减，不能用固定的 24 小时毫秒数：
+// 夏令时切换当天只有 23 或 25 小时，直接减 DAY 会跳过或重复一天。
+function previousDay(time: number) {
+  const date = new Date(time)
+  date.setDate(date.getDate() - 1)
+  return date.getTime()
+}
+
 export function emptyState(): LearningState {
   return {
     version: 1,
@@ -349,8 +357,9 @@ export function makeQuiz(items: ReaderItem[], pool: ReaderItem[], count = 8): Qu
   while (questions.length < count && attempts < count * 8) {
     attempts++
     const item = targets[cursor++ % targets.length]
+    const translation = typeof item.translation === 'string' ? item.translation.trim() : ''
     const kinds: QuizQuestion['kind'][] = ['listen']
-    if (item.translation) kinds.push('meaning')
+    if (translation) kinds.push('meaning')
     if (normalizeSpeech(item.text).length > 1) kinds.push('spell')
     const available = kinds.filter(kind => !used.has(`${item.id}:${kind}`))
     if (!available.length) continue
@@ -359,13 +368,25 @@ export function makeQuiz(items: ReaderItem[], pool: ReaderItem[], count = 8): Qu
     let answer = item.text
     let options: string[] = []
     if (kind === 'meaning') {
-      answer = item.translation || ''
-      const distractors = shuffle(cleanPool.filter(row => row.id !== item.id && row.translation && row.translation !== answer)).slice(0, 3).map(row => row.translation!)
-      options = shuffle([answer, ...distractors])
+      answer = translation
+      // 不同词条可能有相同中文释义；按去掉两端空白后的释义去重，
+      // 否则 “猫” 和 “ 猫 ” 会变成两个看起来一样的选项。
+      const seen = new Set([answer])
+      const distractors: string[] = []
+      for (const row of cleanPool) {
+        if (row.id === item.id) continue
+        const value = typeof row.translation === 'string' ? row.translation.trim() : ''
+        if (!value || seen.has(value)) continue
+        seen.add(value)
+        distractors.push(value)
+      }
+      options = shuffle([answer, ...shuffle(distractors).slice(0, 3)])
     } else if (kind === 'listen') {
       const distractors = shuffle(cleanPool.filter(row => row.id !== item.id && row.text !== answer)).slice(0, 3).map(row => row.text)
       options = shuffle([answer, ...distractors])
     }
+    // 释义全部重复时只剩一个选项，这种题没有作答意义，跳过。
+    if (kind !== 'spell' && options.length < 2) continue
     questions.push({
       id: `${item.id}:${kind}:${questions.length}`,
       item,
@@ -403,8 +424,9 @@ export function addStudySeconds(state: LearningState, profile: ProfileId, second
 export function weekBars(days: Record<string, DayStat>, now = Date.now()) {
   const out: StatsSummary['week'] = []
   for (let offset = 6; offset >= 0; offset--) {
-    const stamp = now - offset * DAY
-    const key = dayKey(stamp)
+    const date = new Date(now)
+    date.setDate(date.getDate() - offset)
+    const key = dayKey(date.getTime())
     const row = days[key]
     out.push({ day: key, seconds: row?.seconds ?? 0, correct: row?.correct ?? 0, wrong: row?.wrong ?? 0 })
   }
@@ -415,12 +437,14 @@ export function streakDays(days: Record<string, DayStat>, now = Date.now()) {
   let streak = 0
   let stamp = now
   // 今天还没学习时，从昨天开始算连续天数，避免白天打开统计就显示中断。
-  if (!(days[dayKey(stamp)]?.seconds ?? 0) && !(days[dayKey(stamp)]?.correct ?? 0)) stamp -= DAY
+  // 判断标准必须和下面的循环一致：只答错也是学习，漏掉 wrong 会让今天的活动白算。
+  const today = days[dayKey(stamp)]
+  if (!today || (today.seconds <= 0 && today.correct <= 0 && today.wrong <= 0)) stamp = previousDay(stamp)
   for (let index = 0; index < 366; index++) {
     const row = days[dayKey(stamp)]
     if (!row || (row.seconds <= 0 && row.correct <= 0 && row.wrong <= 0)) break
     streak++
-    stamp -= DAY
+    stamp = previousDay(stamp)
   }
   return streak
 }
