@@ -6,10 +6,12 @@ import {
   latestPictureProgress,
   normalizePictureCatalog,
   normalizePictureManifest,
+  markPicturePageComplete,
   pictureArt,
   pictureProgressPosition,
   questionsFor,
   readPictureProgress,
+  writePictureProgress,
 } from '../src/pictureBooks.ts'
 import { PICTURE_ARCS, arcForEntry, arcForEpisode, groupPictureEntries } from '../src/pictureArcs.ts'
 import { groupPictureSeries, nextPictureInSeries } from '../src/pictureSeries.ts'
@@ -280,6 +282,45 @@ test('corrupt picture progress entries are ignored and latest valid entry wins',
   }
 })
 
+test('corrupt completion data can be read and then safely autosaved', () => {
+  const store = new Map()
+  const original = globalThis.localStorage
+  globalThis.localStorage = {
+    getItem: key => store.get(key) ?? null,
+    setItem: (key, value) => { store.set(key, String(value)) },
+    removeItem: key => { store.delete(key) },
+  }
+  try {
+    store.set('pep:picture-progress:v1', JSON.stringify({ a: {
+      demo: { pageIndex: 0, mode: 'listen', updatedAt: 1, completedPages: 'bad' },
+    } }))
+    assert.deepEqual(readPictureProgress('demo', 'a'), { pageIndex: 0, mode: 'listen', updatedAt: 1, completedPages: [] })
+    const saved = writePictureProgress('demo', 'a', { pageIndex: 1, mode: 'listen' })
+    assert.deepEqual(saved.completedPages, [])
+    assert.deepEqual(readPictureProgress('demo', 'a'), saved)
+  } finally {
+    if (original === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = original
+  }
+})
+
+test('picture progress remains readable in this session when storage quota is exhausted', () => {
+  const original = globalThis.localStorage
+  globalThis.localStorage = {
+    getItem: () => null,
+    setItem: () => { throw new DOMException('quota exceeded', 'QuotaExceededError') },
+    removeItem: () => {},
+  }
+  try {
+    const saved = markPicturePageComplete('quota-book', 'a', 2)
+    assert.deepEqual(saved.completedPages, [2])
+    assert.deepEqual(readPictureProgress('quota-book', 'a'), saved)
+  } finally {
+    if (original === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = original
+  }
+})
+
 test('picture manifest skips unusable pages and falls back to default media URLs', () => {
   const base = new URL('https://example.test/picture-data/books/x/book.json')
   const normalized = normalizePictureManifest({
@@ -292,6 +333,10 @@ test('picture manifest skips unusable pages and falls back to default media URLs
         image: 'pages/001.jpg',
         sentences: [
           { text: 'Hello', rects: [[0, 0, 0.5, 0.2], 'bad'], start: '1.2', end: '2.5' },
+          { text: 'No timing: null', rects: [], start: null, end: null },
+          { text: 'No timing: empty', rects: [], start: '', end: '' },
+          { text: 'No timing: false', rects: [], start: false, end: false },
+          { text: 'Starts at zero', rects: [], start: 0, end: 1 },
           { text: '   ', rects: [] },
           null,
         ],
@@ -303,17 +348,28 @@ test('picture manifest skips unusable pages and falls back to default media URLs
       { id: 'dup', prompt: 'Question', options: ['a', 'b'], answer: 1 },
       { id: 'dup', prompt: 'Duplicate', options: ['a', 'b'], answer: 0 },
       { prompt: 'Question without id', options: ['a', 'b'], answer: 0 },
+      { id: 'shift', prompt: 'Choose B', options: ['', 'B', 'C'], answer: 1 },
+      { id: 'empty-answer', prompt: 'Invalid answer', options: ['', 'B', 'C'], answer: 0 },
+      { id: 'missing-answer', prompt: 'Missing answer', options: ['A', 'B'] },
     ],
   }, base)
   assert.equal(normalized.pages.length, 2)
   assert.equal(normalized.pages[0].image, 'https://example.test/picture-data/books/x/pages/001.jpg')
-  assert.equal(normalized.pages[0].sentences.length, 1)
+  assert.equal(normalized.pages[0].sentences.length, 5)
   assert.deepEqual(normalized.pages[0].sentences[0].rects, [[0, 0, 0.5, 0.2]])
   assert.equal(normalized.pages[0].sentences[0].start, 1.2)
+  for (const sentence of normalized.pages[0].sentences.slice(1, 4)) {
+    assert.equal(sentence.start, undefined)
+    assert.equal(sentence.end, undefined)
+  }
+  assert.equal(normalized.pages[0].sentences[4].start, 0)
+  assert.equal(normalized.pages[0].sentences[4].end, 1)
   assert.equal(normalized.audio, 'https://example.test/picture-data/books/x/audio/episode.mp3')
   assert.equal(normalized.cover, 'https://example.test/picture-data/books/x/cover.jpg')
   assert.equal(normalized.vocabulary.length, 1)
-  assert.deepEqual(normalized.comprehension.map(question => question.id), ['dup', 'q3'])
+  assert.deepEqual(normalized.comprehension.map(question => question.id), ['dup', 'q3', 'shift'])
+  assert.deepEqual(normalized.comprehension[2].options, ['B', 'C'])
+  assert.equal(normalized.comprehension[2].answer, 0)
   assert.equal(normalizePictureManifest({ pages: [] }, base), undefined)
   assert.equal(normalizePictureManifest({ pages: [{ image: 'http://[' }] }, base), undefined)
 })

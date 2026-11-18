@@ -50,17 +50,19 @@ export function normalizeCatalog(value: unknown, base: URL): RemoteBookEntry[] {
   const rows = catalogRows(value)
   const entries: RemoteBookEntry[] = [], seen = new Set<string>()
   for (const row of rows) {
-    if (!isObject(row) || typeof row.id !== 'string' || !row.id.trim() || typeof row.manifest !== 'string' || !row.manifest.trim() || seen.has(row.id)) continue
+    if (!isObject(row) || typeof row.id !== 'string' || !row.id.trim() || typeof row.manifest !== 'string' || !row.manifest.trim()) continue
+    const id = row.id.trim()
+    if (seen.has(id)) continue
     const manifest = safeUrl(row.manifest, base)
     if (!manifest) continue
-    seen.add(row.id)
+    seen.add(id)
     const pages = Number(row.pages)
     const items = Number(row.items)
     const audio = Number(row.audio)
     const videos = Number(row.videos)
     entries.push({
-      id: row.id.trim(),
-      title: typeof row.title === 'string' && row.title.trim() ? row.title.trim() : row.id.trim(),
+      id,
+      title: typeof row.title === 'string' && row.title.trim() ? row.title.trim() : id,
       manifest,
       pages: Number.isFinite(pages) && pages > 0 ? Math.trunc(pages) : undefined,
       items: Number.isFinite(items) && items > 0 ? Math.trunc(items) : undefined,
@@ -109,6 +111,21 @@ function validManifest(value: unknown): value is ReaderManifest {
   return value.pages.every((page: unknown) => isObject(page) && typeof page.page === 'number' && typeof page.image === 'string' && Array.isArray(page.items))
 }
 
+function normalizeRemoteItems(values: unknown[]): ReaderItem[] {
+  return values.flatMap(value => {
+    if (!isObject(value) || typeof value.id !== 'string' || !value.id.trim() || typeof value.text !== 'string' || !Array.isArray(value.rects)) return []
+    const item = { ...value }
+    try {
+      normalizeReaderManifest({ pages: [{ items: [item] }] })
+    } catch {
+      // 损坏的可选音频区间退回整段播放，不丢掉其他有效热点。
+      delete item.audioStart
+      delete item.audioEnd
+    }
+    return [item as ReaderItem]
+  })
+}
+
 export async function loadRemoteBook(entry: RemoteBookEntry): Promise<LocalBook> {
   const manifestUrl = new URL(entry.manifest, location.href)
   const manifest = await fetchWithTimeout(manifestUrl, { cache: 'no-cache' }, async response => {
@@ -116,7 +133,11 @@ export async function loadRemoteBook(entry: RemoteBookEntry): Promise<LocalBook>
     let data: unknown
     try { data = await response.json() } catch { throw new Error('在线教材清单格式无效。') }
     if (!validManifest(data)) throw new Error('在线教材清单缺少页面，无法打开。')
-    return normalizeReaderManifest(data)
+    const sanitized: ReaderManifest = {
+      ...data,
+      pages: data.pages.map(page => ({ ...page, items: normalizeRemoteItems(page.items) })),
+    }
+    return normalizeReaderManifest(sanitized)
   })
   // 路由和书架都以目录里的 id 为准，清单里的 bookId 只作为数据字段保留。
   const bookId = entry.id
@@ -189,16 +210,12 @@ export function readRemotePageItems(bookId: string, page: number): ReaderItem[] 
   try {
     const value = JSON.parse(raw)
     if (!Array.isArray(value)) return undefined
-    return value.filter((item): item is ReaderItem =>
-      !!item && typeof item === 'object' &&
-      typeof item.id === 'string' && !!item.id &&
-      typeof item.text === 'string' &&
-      Array.isArray(item.rects)
-    ).map(item => ({
+    const items = normalizeRemoteItems(value).map(item => ({
       ...item,
       order: Number.isFinite(item.order) ? item.order : 0,
       rects: item.rects.filter(isRect),
     }))
+    return items.length ? items : undefined
   } catch {
     return undefined
   }

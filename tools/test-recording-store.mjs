@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { after, test } from 'node:test'
 
 const originalLocalStorage = globalThis.localStorage
+const originalIndexedDB = globalThis.indexedDB
 
 function installStore(rows) {
   const store = new Map([['pep:recordings:v1', JSON.stringify(rows)]])
@@ -13,7 +14,7 @@ function installStore(rows) {
   return store
 }
 
-const { latestRecording, listRecordings } = await import('../src/reader/recordingStore.ts')
+const { latestRecording, listRecordings, saveRecording } = await import('../src/reader/recordingStore.ts')
 
 test('corrupt recording metadata is normalized instead of crashing the reader', () => {
   installStore([
@@ -41,6 +42,58 @@ test('a corrupt recordings store is treated as empty', () => {
   assert.deepEqual(listRecordings('a', 'book', 'item'), [])
   store.set('pep:recordings:v1', JSON.stringify({ rows: [] }))
   assert.deepEqual(listRecordings('a', 'book', 'item'), [])
+})
+
+test('metadata quota failure rejects and removes the newly written orphan blob', async () => {
+  const blobs = new Map()
+  globalThis.indexedDB = {
+    open() {
+      const request = {}
+      queueMicrotask(() => {
+        request.result = {
+          objectStoreNames: { contains: () => true },
+          close() {},
+          transaction() {
+            const transaction = {
+              objectStore() {
+                return {
+                  put: row => blobs.set(row.id, row.blob),
+                  delete: id => blobs.delete(id),
+                  get(id) {
+                    const getRequest = {}
+                    queueMicrotask(() => {
+                      getRequest.result = blobs.has(id) ? { id, blob: blobs.get(id) } : undefined
+                      getRequest.onsuccess?.()
+                    })
+                    return getRequest
+                  },
+                }
+              },
+            }
+            queueMicrotask(() => transaction.oncomplete?.())
+            return transaction
+          },
+        }
+        request.onsuccess?.()
+      })
+      return request
+    },
+  }
+  globalThis.localStorage = {
+    getItem: () => null,
+    setItem: () => { throw new DOMException('quota exceeded', 'QuotaExceededError') },
+    removeItem: () => {},
+  }
+  try {
+    await assert.rejects(saveRecording({
+      profile: 'a', bookId: 'book', itemId: 'item', text: 'hello', duration: 1, mime: 'audio/webm', blob: new Blob(['clip']),
+    }), /录音元数据无法保存/)
+    assert.equal(blobs.size, 0)
+    assert.deepEqual(listRecordings('a', 'book', 'item'), [])
+  } finally {
+    if (originalIndexedDB === undefined) delete globalThis.indexedDB
+    else globalThis.indexedDB = originalIndexedDB
+  }
 })
 
 after(() => {

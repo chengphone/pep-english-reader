@@ -22,6 +22,7 @@ import {
 const STORAGE_KEY = 'pep:learning:v1'
 const listeners = new Set<() => void>()
 let cache: LearningState | null = null
+let cacheDirty = false
 
 function emit() {
   for (const listener of listeners) listener()
@@ -31,8 +32,10 @@ function persist(next: LearningState) {
   cache = next
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    cacheDirty = false
   } catch {
     // 隐私模式或存储已满时至少保留当前会话内的学习状态。
+    cacheDirty = true
   }
   emit()
 }
@@ -49,7 +52,18 @@ export function getLearningState(): LearningState {
 }
 
 function update(mutator: (state: LearningState) => LearningState) {
-  persist(mutator(getLearningState()))
+  let state = getLearningState()
+  // localStorage operations are synchronous: refresh the durable snapshot immediately
+  // before each read/modify/write so a tab with a stale in-memory cache cannot erase
+  // a write made by another tab whose storage event has not arrived yet.
+  if (!cacheDirty) {
+    try {
+      state = normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'))
+    } catch {
+      // Keep the in-session snapshot when storage is unavailable.
+    }
+  }
+  persist(mutator(state))
 }
 
 export function subscribeLearning(listener: () => void) {
@@ -59,11 +73,13 @@ export function subscribeLearning(listener: () => void) {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', event => {
-    if (event.key !== STORAGE_KEY) return
+    if (event.key !== STORAGE_KEY && event.key !== null) return
     try {
-      cache = normalizeState(JSON.parse(event.newValue ?? 'null'))
+      cache = normalizeState(JSON.parse(event.key === null ? 'null' : event.newValue ?? 'null'))
+      cacheDirty = false
     } catch {
       cache = emptyState()
+      cacheDirty = false
     }
     emit()
   })

@@ -108,6 +108,7 @@ export default function PictureReader({
   const [offline, setOffline] = useState<PictureOfflineState | null>(null)
   const [offlineSaving, setOfflineSaving] = useState(false)
   const [offlineError, setOfflineError] = useState('')
+  const offlineControllerRef = useRef<AbortController | null>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const sentenceStopRef = useRef<{ end: number; id: string } | null>(null)
   const pendingSentenceRef = useRef<{ start: number } | null>(null)
@@ -176,10 +177,14 @@ export default function PictureReader({
   useEffect(() => {
     if (!book) return
     let live = true
+    offlineControllerRef.current?.abort()
     setOffline(null)
     setOfflineError('')
     void checkPictureOffline(book).then(state => { if (live) setOffline(state) })
-    return () => { live = false }
+    return () => {
+      live = false
+      offlineControllerRef.current?.abort()
+    }
   }, [book?.id, book?.manifestUrl])
 
   useEffect(() => {
@@ -488,17 +493,25 @@ export default function PictureReader({
   }
 
   async function saveOffline() {
-    if (!book || offlineSaving) return
+    if (!book || offlineControllerRef.current) return
     setOfflineSaving(true)
     setOfflineError('')
+    const controller = new AbortController()
+    offlineControllerRef.current = controller
     try {
-      const state = await savePictureOffline(book, setOffline)
-      setOffline(state)
-      if (!state.complete) setOfflineError('部分文件没有保存成功，请确认本地服务器仍在运行后再试。')
-    } catch {
-      setOfflineError('离线保存失败，请检查浏览器存储空间或重新打开页面。')
+      const state = await savePictureOffline(book, next => { if (mountedRef.current) setOffline(next) }, controller.signal)
+      if (mountedRef.current) {
+        setOffline(state)
+        if (!state.supported && state.reason === 'cross-origin') setOfflineError('本集含有跨域资源，暂不支持离线保存。')
+        else if (!state.complete) setOfflineError('部分文件没有保存成功，请确认本地服务器仍在运行后再试。')
+      }
+    } catch (reason) {
+      if (mountedRef.current && !(reason instanceof DOMException && reason.name === 'AbortError')) {
+        setOfflineError('离线保存失败，请检查浏览器存储空间或重新打开页面。')
+      }
     } finally {
-      setOfflineSaving(false)
+      if (offlineControllerRef.current === controller) offlineControllerRef.current = null
+      if (mountedRef.current) setOfflineSaving(false)
     }
   }
 
@@ -724,15 +737,15 @@ export default function PictureReader({
             <small>{!offline
               ? '正在检查本机缓存…'
               : !offline.supported
-                ? '当前地址不支持离线缓存；请使用 localhost 或 HTTPS。'
+                ? offline.reason === 'cross-origin' ? '本集含有跨域资源，暂不支持离线缓存。' : '当前地址不支持离线缓存；请使用 localhost 或 HTTPS。'
                 : offline.complete
                   ? `已保存 ${offline.total} 个文件，可离线打开。`
                   : offline.saved
                     ? `已缓存 ${offline.saved} / ${offline.total} 个文件。`
                     : '把本集页面和整集音频保存到本机。'}</small>
           </div>
-          {offline?.supported && !offline.complete && <button type="button" className="pbook-offline-button" disabled={offlineSaving} onClick={() => void saveOffline()}>
-            <Download size={13}/>{offlineSaving ? `${offline.saved}/${offline.total}` : '保存到本机'}
+          {offline?.supported && !offline.complete && <button type="button" className="pbook-offline-button" onClick={() => offlineSaving ? offlineControllerRef.current?.abort() : void saveOffline()}>
+            <Download size={13}/>{offlineSaving ? `取消下载（${offline.saved}/${offline.total}）` : '保存到本机'}
           </button>}
           {offline?.complete && <span className="pbook-offline-check"><Check size={13}/>已保存</span>}
         </section>

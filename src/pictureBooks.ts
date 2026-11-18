@@ -81,6 +81,11 @@ function isRect(value: unknown): value is [number, number, number, number] {
 function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
+function optionalSeconds(value: unknown) {
+  if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return undefined
+  const seconds = Number(value)
+  return Number.isFinite(seconds) ? Math.max(0, seconds) : undefined
+}
 function normalizeLevel(value: unknown): PictureLevel {
   return LEVELS.includes(value as PictureLevel) ? value as PictureLevel : 'starter'
 }
@@ -238,8 +243,8 @@ export function normalizePictureManifest(value: unknown, base: URL): PictureBook
         rects,
         continuedFrom: cleanText(sentence.continuedFrom) || undefined,
         translation: cleanText(sentence.translation) || undefined,
-        start: Number.isFinite(Number(sentence.start)) ? Math.max(0, Number(sentence.start)) : undefined,
-        end: Number.isFinite(Number(sentence.end)) ? Math.max(0, Number(sentence.end)) : undefined,
+        start: optionalSeconds(sentence.start),
+        end: optionalSeconds(sentence.end),
       })
     }
     pages.push({
@@ -257,10 +262,18 @@ export function normalizePictureManifest(value: unknown, base: URL): PictureBook
   const comprehension: PictureQuestion[] = []
   const seenQuestions = new Set<string>()
   for (const [index, row] of (Array.isArray(value.comprehension) ? value.comprehension : []).entries()) {
-    if (!isObject(row)) continue
+    if (!isObject(row) || !Number.isInteger(row.answer)) continue
     const prompt = cleanText(row.prompt)
-    const options = Array.isArray(row.options) ? row.options.map(cleanText).filter(Boolean) : []
-    const answer = Number.isInteger(row.answer) ? row.answer : 0
+    const options: string[] = []
+    let answer = -1
+    if (Array.isArray(row.options)) {
+      for (const [optionIndex, option] of row.options.entries()) {
+        const text = cleanText(option)
+        if (!text) continue
+        if (optionIndex === row.answer) answer = options.length
+        options.push(text)
+      }
+    }
     const id = cleanText(row.id) || `q${index + 1}`
     if (!prompt || options.length < 2 || answer < 0 || answer >= options.length || seenQuestions.has(id)) continue
     seenQuestions.add(id)
@@ -306,18 +319,7 @@ export async function loadPictureBook(entry: PictureCatalogEntry): Promise<Pictu
 }
 
 type ProgressStore = Partial<Record<ProfileId, Record<string, PictureProgress>>>
-
-function readStore(): ProgressStore {
-  try {
-    const value = JSON.parse(localStorage.getItem(PROGRESS_KEY) ?? '{}')
-    return isObject(value) ? value as ProgressStore : {}
-  } catch {
-    return {}
-  }
-}
-function writeStore(store: ProgressStore) {
-  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(store)) } catch { /* 隐私模式下只保留本次阅读状态 */ }
-}
+let volatileProgress: ProgressStore = {}
 
 function normalizeProgress(value: unknown): PictureProgress | undefined {
   if (!isObject(value) || !Number.isFinite(value.pageIndex)) return undefined
@@ -331,19 +333,62 @@ function normalizeProgress(value: unknown): PictureProgress | undefined {
   }
 }
 
+function normalizeProgressStore(value: unknown): ProgressStore {
+  if (!isObject(value)) return {}
+  const store: ProgressStore = {}
+  for (const [profile, rows] of Object.entries(value)) {
+    if ((profile !== 'a' && profile !== 'b') || !isObject(rows)) continue
+    const normalized: Record<string, PictureProgress> = {}
+    for (const [bookId, raw] of Object.entries(rows)) {
+      const progress = normalizeProgress(raw)
+      if (progress) normalized[bookId] = progress
+    }
+    store[profile] = normalized
+  }
+  return store
+}
+
+function readStore(): ProgressStore {
+  let store: ProgressStore = {}
+  try {
+    store = normalizeProgressStore(JSON.parse(localStorage.getItem(PROGRESS_KEY) ?? '{}'))
+  } catch {
+    // Indexed progress remains available from the in-memory copy when storage is blocked.
+  }
+  for (const profile of ['a', 'b'] as const) {
+    for (const [bookId, progress] of Object.entries(volatileProgress[profile] ?? {})) {
+      const persisted = store[profile]?.[bookId]
+      if (!persisted || progress.updatedAt >= persisted.updatedAt) {
+        store[profile] = { ...(store[profile] ?? {}), [bookId]: progress }
+      }
+    }
+  }
+  return store
+}
+
+function writeStore(store: ProgressStore) {
+  try {
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(store))
+    volatileProgress = {}
+  } catch {
+    volatileProgress = normalizeProgressStore(store)
+  }
+}
+
 export function readPictureProgress(bookId: string, profile: ProfileId): PictureProgress | undefined {
   return normalizeProgress(readStore()[profile]?.[bookId])
 }
 
 export function writePictureProgress(bookId: string, profile: ProfileId, patch: Partial<PictureProgress>) {
   const store = readStore()
-  const previous = store[profile]?.[bookId]
+  const previous = normalizeProgress(store[profile]?.[bookId])
+  const requestedPage = Number.isFinite(patch.pageIndex) ? patch.pageIndex! : previous?.pageIndex ?? 0
+  const completed = Array.isArray(patch.completedPages) ? patch.completedPages : previous?.completedPages ?? []
   const next: PictureProgress = {
-    pageIndex: Math.max(0, Math.trunc(patch.pageIndex ?? previous?.pageIndex ?? 0)),
+    pageIndex: Math.max(0, Math.trunc(requestedPage)),
     mode: patch.mode && MODES.includes(patch.mode) ? patch.mode : previous?.mode ?? 'listen',
     updatedAt: Date.now(),
-    completedPages: (patch.completedPages ?? previous?.completedPages ?? [])
-      .filter((page): page is number => Number.isInteger(page) && page >= 0),
+    completedPages: completed.filter((page): page is number => Number.isInteger(page) && page >= 0),
   }
   store[profile] = { ...(store[profile] ?? {}), [bookId]: next }
   writeStore(store)

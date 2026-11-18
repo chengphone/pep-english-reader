@@ -218,6 +218,23 @@ test('offline range requests fall back to the cached full media file',async()=>{
  assert.equal(await response.text(),'full-audio')
 })
 
+test('a stalled Range request falls back to a complete cached media file',async()=>{
+ const h=harness(),file=new URL('/book-data/demo/audio/1.mp3',base).href
+ await h.cacheFor('pep-reader-books-v1').put(file,new Response('full-audio',{status:200}))
+ let aborted=false
+ h.network((request,options)=>new Promise((_,reject)=>options?.signal?.addEventListener('abort',()=>{aborted=true;reject(Object.assign(new Error('aborted'),{name:'AbortError'}))},{once:true})))
+ const started=Date.now()
+ const result=await Promise.race([
+  h.request('/book-data/demo/audio/1.mp3',false,{Range:'bytes=3-'}).then(response=>({response})),
+  new Promise(resolve=>setTimeout(()=>resolve({timedOut:true}),5000)),
+ ])
+ assert.equal(result.timedOut,undefined)
+ assert.equal(result.response.status,200)
+ assert.equal(await result.response.text(),'full-audio')
+ assert.equal(aborted,true)
+ assert(Date.now()-started<5000)
+})
+
 test('a partial range response is never stored as a complete cached file',async()=>{
  const h=harness()
  h.network(async()=>new Response('part',{status:206,headers:{'Content-Range':'bytes 0-3/100'}}))

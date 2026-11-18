@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from '../fetchTimeout.ts'
 import type { LocalBook } from './types'
 
 // 在线教材的离线缓存。SW 会优先从 pep-reader-books-v1 返回 /book-data/ 下的
@@ -59,13 +60,18 @@ export function collectBookUrls(book: LocalBook) {
   return [...urls].filter(url => /^https?:\/\//i.test(url))
 }
 
-async function fetchForCache(url: string) {
+const CACHE_REQUEST_TIMEOUT_MS = 20_000
+
+async function fetchForCache(url: string, signal?: AbortSignal) {
   try {
-    return await fetch(url, { mode: 'cors', cache: 'reload' })
-  } catch {
+    return await fetchWithTimeout(url, { mode: 'cors', cache: 'reload', signal }, response => response, CACHE_REQUEST_TIMEOUT_MS)
+  } catch (error) {
+    const aborted = signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')
+    const timedOut = error instanceof Error && error.message.includes('网络请求超时')
+    if (aborted || timedOut) throw error
     // 跨域媒体如果没有 CORS 头，仍然可以用 no-cors 存成 opaque 响应，
     // <img>/<audio> 读取时不需要应用层访问响应正文。
-    return fetch(url, { mode: 'no-cors', cache: 'reload' })
+    return fetchWithTimeout(url, { mode: 'no-cors', cache: 'reload', signal }, response => response, CACHE_REQUEST_TIMEOUT_MS)
   }
 }
 
@@ -100,12 +106,13 @@ export async function cacheBook(
       }
       if (!cached) {
         try {
-          const response = await fetchForCache(url)
+          const response = await fetchForCache(url, signal)
           if (!response.ok && response.type !== 'opaque') throw new Error(String(response.status))
           await cache.put(url, response.clone())
           bytes += Number(response.headers.get('content-length')) || 0
           cachedUrls.push(url)
-        } catch {
+        } catch (error) {
+          if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) throw error
           failures.push(url)
         }
       } else {

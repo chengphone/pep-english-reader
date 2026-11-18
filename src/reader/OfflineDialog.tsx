@@ -26,6 +26,7 @@ export default function OfflineDialog({ book, onClose }: Props) {
   const [notice, setNotice] = useState('')
   const [storage, setStorage] = useState({ usage: 0, quota: 0 })
   const [busy, setBusy] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const controller = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export default function OfflineDialog({ book, onClose }: Props) {
   async function download() {
     if (busy) return
     setBusy(true)
+    setDownloading(true)
     setError('')
     setNotice('')
     const abort = new AbortController()
@@ -58,6 +60,7 @@ export default function OfflineDialog({ book, onClose }: Props) {
       else setError(reason instanceof Error ? reason.message : '离线下载失败，请重试。')
     } finally {
       setBusy(false)
+      setDownloading(false)
       setProgress(null)
       controller.current = null
     }
@@ -109,7 +112,7 @@ export default function OfflineDialog({ book, onClose }: Props) {
         {notice && <p className="offline-notice" role="status">{notice}</p>}
         {error && <p className="offline-error" role="alert">{error}</p>}
         <div className="offline-actions">
-          {busy && progress ? <button className="offline-secondary" onClick={() => controller.current?.abort()}><WifiOff size={16}/>取消下载</button>
+          {downloading ? <button className="offline-secondary" onClick={() => controller.current?.abort()}><WifiOff size={16}/>取消下载</button>
             : <button className="offline-primary" disabled={busy} onClick={() => void download()}><CloudDownload size={17}/>{meta ? '补齐或更新离线资源' : '保存本书离线'}</button>}
           {meta && !busy && <button className="offline-danger" onClick={() => void remove()}><Trash2 size={16}/>移除缓存</button>}
         </div>

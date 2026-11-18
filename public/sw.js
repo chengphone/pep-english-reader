@@ -5,6 +5,7 @@ const CACHE = 'pep-reader-shell-v3-word-audio'
 const DATA_CACHE = 'pep-reader-data-v1'
 // 在线教材和绘本的页面、音频和视频。缓存只写入本机；不随应用版本清理。
 const BOOK_CACHE = 'pep-reader-books-v1'
+const RANGE_FALLBACK_TIMEOUT_MS = 4000
 const BASE = '/pep-english-reader/'
 const CACHE_PREFIX = 'pep-reader-shell-'
 const isFreshData = pathname => (pathname.startsWith(BASE + 'data/') && pathname.endsWith('.json')) || pathname === BASE + 'audio/library-manifest.json' || pathname === BASE + 'remote-books.json'
@@ -78,8 +79,14 @@ self.addEventListener('fetch', event => {
       // 音频/视频的 Range 请求直接走网络和浏览器 HTTP 缓存，避免把 206 写进
       // Cache Storage；图片和完整音频继续 cache-first 并后台刷新。
       if (cached && !bypass && !revalidate && !range) return cached
+      const rangeController = range && cached ? new AbortController() : undefined
+      const rangeTimer = rangeController ? setTimeout(() => rangeController.abort(), RANGE_FALLBACK_TIMEOUT_MS) : undefined
       try {
-        const response = await fetch(request, revalidate ? { cache: 'no-cache' } : undefined)
+        const init = {
+          ...(revalidate ? { cache: 'no-cache' } : {}),
+          ...(rangeController ? { signal: rangeController.signal } : {}),
+        }
+        const response = await fetch(request, Object.keys(init).length ? init : undefined)
         if (response.status === 304 && cached) return cached
         if (response.status === 200 && cache) {
           await cache.put(request, response.clone()).catch(() => {})
@@ -87,6 +94,8 @@ self.addEventListener('fetch', event => {
         return response
       } catch {
         return cached || Response.error()
+      } finally {
+        if (rangeTimer) clearTimeout(rangeTimer)
       }
     })())
     return

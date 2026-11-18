@@ -30,9 +30,11 @@ const row = id => ({
 
 installBase()
 const {
+  loadRemoteBook,
   loadRemoteCatalog,
   loadRemoteCatalogDetailed,
   normalizeCatalog,
+  readRemotePageItems,
   readRemoteTranslation,
   writeRemotePageItems,
   writeRemoteTranslation,
@@ -56,6 +58,40 @@ test('remote catalog skips only rows with unusable manifest URLs', () => {
   assert.equal(entries[1].cover, undefined)
   assert.deepEqual(normalizeCatalog([], base), [])
   assert.throws(() => normalizeCatalog({}, base), /格式无效/)
+})
+
+test('catalog IDs stay unique after trimming whitespace', () => {
+  const base = new URL('https://example.test/pep-english-reader/remote-books.json')
+  const entries = normalizeCatalog({ books: [
+    { id: ' demo ', title: 'First', manifest: 'one.json' },
+    { id: 'demo', title: 'Second', manifest: 'two.json' },
+    { id: 'book', manifest: 'three.json' },
+    { id: 'book', manifest: 'four.json' },
+  ] }, base)
+  assert.deepEqual(entries.map(entry => entry.id), ['demo', 'book'])
+  assert.equal(entries[0].title, 'First')
+  assert.equal(entries[0].manifest, 'https://example.test/pep-english-reader/one.json')
+  assert.equal(new Set(entries.map(entry => entry.id)).size, entries.length)
+})
+
+test('malformed remote and local hotspots do not break a usable page', async () => {
+  const store = installBase()
+  store.set('pep:remote-items:demo:1', JSON.stringify([null, { broken: true }]))
+  globalThis.fetch = async () => jsonResponse({
+    schemaVersion: 1,
+    bookId: 'demo',
+    title: 'Demo',
+    publisherId: 'test',
+    pages: [{
+      page: 1,
+      image: 'page.jpg',
+      items: [null, { broken: true }, { id: 'valid', text: 'hello', order: 0, rects: [] }],
+    }],
+  })
+  const book = await loadRemoteBook({ id: 'demo', title: 'Demo', manifest: 'https://example.test/book.json' })
+  assert.equal(book.manifest.pages.length, 1)
+  assert.deepEqual(book.manifest.pages[0].items.map(item => item.id), ['valid'])
+  assert.equal(readRemotePageItems('demo', 1), undefined)
 })
 
 test('a failed default catalog reports an error instead of pretending the library is empty', async () => {

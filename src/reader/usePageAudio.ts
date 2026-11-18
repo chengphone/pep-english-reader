@@ -121,7 +121,9 @@ export function usePageAudio(page: ReaderPage | undefined): PageAudioController 
       if (audio.current !== player) return
       if (loopRef.current) {
         try { player.currentTime = startAt.current } catch { /* 忽略 */ }
-        void player.play().catch(() => setError('这段音频无法继续播放，请再点一次。'))
+        void player.play().catch(() => {
+          if (audio.current === player) setError('这段音频无法继续播放，请再点一次。')
+        })
         return
       }
       setPlaying(false)
@@ -155,7 +157,11 @@ export function usePageAudio(page: ReaderPage | undefined): PageAudioController 
         }
         void player.play().then(() => {
           if (audio.current === player) setPlaying(true)
-        }).catch(() => setError('浏览器没有开始播放，请再点一次。'))
+        }).catch(() => {
+          if (audio.current !== player) return
+          setPlaying(false)
+          setError('浏览器没有开始播放，请再点一次。')
+        })
       } else {
         player.pause()
         setPlaying(false)

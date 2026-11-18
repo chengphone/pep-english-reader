@@ -88,8 +88,9 @@ function readMeta(): RecordingMeta[] {
 function writeMeta(rows: RecordingMeta[]) {
   try {
     localStorage.setItem(META_KEY, JSON.stringify(rows.slice(0, MAX_CLIPS)))
+    return true
   } catch {
-    // 存储失败时仍把本次录音留在这个页面里。
+    return false
   }
 }
 
@@ -158,7 +159,10 @@ export async function saveRecording(options: {
     createdAt,
   }
   const rows = [meta, ...readMeta()]
-  writeMeta(rows)
+  if (!writeMeta(rows)) {
+    await deleteBlob(id).catch(() => {})
+    throw new Error('录音元数据无法保存，录音未保留。请检查本机存储空间后重试。')
+  }
   for (const stale of rows.slice(MAX_CLIPS)) void deleteBlob(stale.id).catch(() => {})
   return meta
 }
