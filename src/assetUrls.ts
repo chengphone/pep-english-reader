@@ -5,22 +5,26 @@ type ObjectUrlApi = {
   revokeObjectURL(url: string): void
 }
 
-const cache = new Map<string, { blob: Blob; url: string }>()
+const cache = new Map<string, { bookId: string; blob: Blob; url: string }>()
+
+// 教材 id 和资源路径都来自清单，可以包含任意字符（包括冒号）。用拼接字符串
+// 做键会让 ('a','b:c') 与 ('a:b','c') 撞在一起；JSON 数组键不会产生歧义。
+const keyFor = (bookId: string, path: string) => JSON.stringify([bookId, path])
 
 export function assetObjectUrl(bookId: string, path: string, blob: Blob, api: ObjectUrlApi = URL): string {
-  const key = `${bookId}:${path}`
+  const key = keyFor(bookId, path)
   const cached = cache.get(key)
   if (cached && cached.blob === blob) return cached.url
   if (cached) api.revokeObjectURL(cached.url)
   const url = api.createObjectURL(blob)
-  cache.set(key, { blob, url })
+  cache.set(key, { bookId, blob, url })
   return url
 }
 
 export function revokeBookObjectUrls(bookId: string, api: ObjectUrlApi = URL): void {
-  const prefix = `${bookId}:`
+  // 不能按 `${bookId}:` 前缀筛选：删除教材 a 时会把 a:b 的资源一起撤销。
   for (const [key, entry] of cache) {
-    if (!key.startsWith(prefix)) continue
+    if (entry.bookId !== bookId) continue
     api.revokeObjectURL(entry.url)
     cache.delete(key)
   }

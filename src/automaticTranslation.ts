@@ -4,10 +4,13 @@ export function translationKey(text:string){return text.normalize('NFKC').toLowe
 const glossaryCache=new Map<string,Promise<Record<string,string>>>()
 const modelCache=new Map<string,string>()
 let translatorPromise:Promise<any>|undefined
+// 词条文本会直接作为查表键；回退也必须用无原型对象，否则 constructor、
+// __proto__ 这类词会命中原型属性，把函数或对象当成教材释义交给渲染。
+const emptyGlossary=():Record<string,string>=>Object.create(null)
 async function loadGlossary(book:string){
  if(!glossaryCache.has(book))glossaryCache.set(book,new Promise((resolve)=>{
   let settled=false
-  const timer=setTimeout(()=>finish({}),5000)
+  const timer=setTimeout(()=>finish(emptyGlossary()),5000)
   function finish(glossary:Record<string,string>){if(settled)return;settled=true;clearTimeout(timer);resolve(glossary)}
   try{
    const request=indexedDB.open('pep-reader-v1',2)
@@ -15,16 +18,16 @@ async function loadGlossary(book:string){
    // the same stores the rest of the app expects, otherwise the transaction below
    // throws and this promise would never settle.
    request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains('books'))db.createObjectStore('books',{keyPath:'id'});if(!db.objectStoreNames.contains('units'))db.createObjectStore('units',{keyPath:'id'})}
-   request.onerror=()=>finish({})
+   request.onerror=()=>finish(emptyGlossary())
    request.onsuccess=()=>{
     const db=request.result
     try{
      const r=db.transaction('units').objectStore('units').getAll()
      r.onsuccess=()=>{const glossary:Record<string,string>=Object.create(null);for(const unit of r.result){if(!unit||unit.book!==book)continue;for(const word of unit.words??[])if(word&&typeof word.english==='string'&&typeof word.meaning==='string')glossary[translationKey(word.english)]=word.meaning}db.close();finish(glossary)}
-     r.onerror=()=>{db.close();finish({})}
-    }catch{db.close();finish({})}
+     r.onerror=()=>{db.close();finish(emptyGlossary())}
+    }catch{db.close();finish(emptyGlossary())}
    }
-  }catch{finish({})}
+  }catch{finish(emptyGlossary())}
  }))
  return glossaryCache.get(book)!
 }
