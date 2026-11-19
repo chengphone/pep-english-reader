@@ -81,6 +81,18 @@ test('a stale cached page visit does not overwrite a newer page from another tab
   deliverStorageEvents()
 })
 
+test('a no-op page visit refreshes stale in-memory state from localStorage', () => {
+  firstTab.recordPageVisit('same-page', 1)
+  deliverStorageEvents()
+  secondTab.recordPageVisit('same-page', 2)
+  // 本标签页也翻到第 2 页；它与持久化值一致，所以不会产生新的写入，
+  // 但读取接口仍必须从已刷新快照看到第 2 页，而不是旧缓存中的第 1 页。
+  firstTab.recordPageVisit('same-page', 2)
+  assert.equal(firstTab.readLastPage('same-page'), 2)
+  assert.equal(JSON.parse(values.get(STORAGE_KEY)).lastPages.a['same-page'], 2)
+  deliverStorageEvents()
+})
+
 test('study seconds can be attributed to the profile that was active when they accrued', () => {
   firstTab.setActiveProfile('b')
   deliverStorageEvents()

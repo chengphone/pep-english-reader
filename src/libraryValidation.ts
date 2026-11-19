@@ -51,9 +51,10 @@ export function normalizeReaderManifest<T>(value:T):T{
   }
   if(!Array.isArray(page.items))continue
   // null、字符串或数组条目没有可用的 id / rects，保留下来只会在渲染时抛错。
-  // text 会直接成为 React 子节点和朗读文本；对象或数组同样会让阅读器崩溃。
-  page.items=page.items.filter((item:unknown)=>object(item)&&typeof item.text==='string')
+  // id 是 React key 和学习记录键，text 会成为 React 子节点和朗读文本；坏值都丢弃。
+  page.items=page.items.filter((item:unknown)=>object(item)&&typeof item.id==='string'&&!!item.id.trim()&&typeof item.text==='string')
   for(const item of page.items){
+   item.id=item.id.trim()
    item.rects=Array.isArray(item.rects)?item.rects.filter(isRect):[]
    // 释义和点读音源会直接进入 React 子节点与 Audio 构造器；对象、数组或数字
    // 会让单词列表和复习卡在渲染时抛错。非字符串一律按未填写处理。

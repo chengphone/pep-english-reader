@@ -53,12 +53,14 @@ export function getLearningState(): LearningState {
 
 function update(mutator: (state: LearningState) => LearningState) {
   let state = getLearningState()
+  let refreshed = false
   // localStorage operations are synchronous: refresh the durable snapshot immediately
   // before each read/modify/write so a tab with a stale in-memory cache cannot erase
   // a write made by another tab whose storage event has not arrived yet.
   if (!cacheDirty) {
     try {
       state = normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'))
+      refreshed = true
     } catch {
       // Keep the in-session snapshot when storage is unavailable.
     }
@@ -66,7 +68,14 @@ function update(mutator: (state: LearningState) => LearningState) {
   // 变更函数返回同一对象表示无需写入；这样“值没变”的判断可以放在刷新
   // 持久化快照之后，避免用陈旧缓存吞掉另一个标签页刚写入的更新。
   const next = mutator(state)
-  if (next === state) return
+  if (next === state) {
+    if (refreshed) {
+      cache = state
+      cacheDirty = false
+      emit()
+    }
+    return
+  }
   persist(next)
 }
 

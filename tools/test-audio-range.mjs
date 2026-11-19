@@ -122,10 +122,15 @@ assert.throws(()=>normalizeReaderManifest({...oldManifest,pages:[{...oldManifest
   {id:'ok',text:'Hello',order:1,rects:[]},
   {id:'badText',text:{zh:'苹果'},order:2,rects:[]},
   {id:'nullText',text:null,order:3,rects:[]},
+  {text:'Missing id',order:4,rects:[]},
+  {id:7,text:'Numeric id',order:5,rects:[]},
+  {id:'   ',text:'Blank id',order:6,rects:[]},
+  {id:' spaced ',text:'Valid id',order:7,rects:[]},
  ]}]}
  const clean=normalizeReaderManifest(dirty)
  assert.equal('title' in clean,false)
- assert.deepEqual(clean.pages[0].items.map(item=>item.id),['ok'])
+ assert.deepEqual(clean.pages[0].items.map(item=>item.id),['ok','spaced'])
+ assert.equal(clean.pages[0].items[1].text,'Valid id')
  assert.deepEqual(clean.pages[0].resources,[])
 }
 {

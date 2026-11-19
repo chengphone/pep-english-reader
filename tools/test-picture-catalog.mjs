@@ -87,6 +87,21 @@ test('a 404 catalog is a legitimate empty library, not a load failure', async ()
   assert.equal(result.error, undefined)
 })
 
+test('a 404 catalog invalidates an older nonempty cache', async () => {
+  installBase()
+  globalThis.fetch = async () => jsonResponse({ books: [row('a')] })
+  assert.equal((await loadPictureCatalogDetailed()).entries.length, 1)
+
+  globalThis.fetch = async () => new Response('', { status: 404 })
+  assert.deepEqual((await loadPictureCatalogDetailed()).entries, [])
+
+  globalThis.fetch = async () => { throw new TypeError('Failed to fetch') }
+  const offline = await loadPictureCatalogDetailed()
+  assert.deepEqual(offline.entries, [])
+  assert.equal(offline.cached, true)
+  assert.equal(offline.error, undefined)
+})
+
 test('invalid JSON and invalid catalog shapes are reported as format errors', async () => {
   installBase()
   globalThis.fetch = async () => new Response('not json', { status: 200, headers: { 'content-type': 'text/html' } })

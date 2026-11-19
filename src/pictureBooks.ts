@@ -229,7 +229,12 @@ export async function loadPictureCatalogDetailed(): Promise<PictureCatalogLoad> 
   const explicit = new URL(location.href).searchParams.has('picture-catalog')
   try {
     const data = await fetchPictureCatalogData(url)
-    if (data === null) return { entries: [] }
+    if (data === null) {
+      // 404 在目录加载语义中等同于合法空馆；清掉旧的非空快照，
+      // 否则之后断网会回退到服务器已移除的绘本列表。
+      writeCachedCatalog({ books: [] }, url)
+      return { entries: [] }
+    }
     const entries = normalizePictureCatalog(data, url)
     // 有名录但每一条都缺 id / manifest 时，是坏数据而不是空馆。
     if (catalogRowCount(data) > 0 && !entries.length) throw new Error('绘本目录格式无效。')
