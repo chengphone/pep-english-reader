@@ -8,6 +8,7 @@ type Props = {
   selectedId?: string
   audioResources: ReaderResource[]
   saving: boolean
+  error?: string
   onSelect: (item: ReaderItem) => void
   onChange: (patch: Partial<ReaderItem>) => void
   onDelete: () => void
@@ -19,7 +20,7 @@ type Props = {
 
 // 内容管理：在书页上拖拽画出矩形，再填写词条和音频区间。
 // 保存后写入本机教材或浏览器覆盖层；导出的 JSON 可放回仓库外的点读数据文件。
-export default function HotspotEditor({ pageNumber, items, selectedId, audioResources, saving, onSelect, onChange, onDelete, onSave, onCancel, onExportPage, onExportAll }: Props) {
+export default function HotspotEditor({ pageNumber, items, selectedId, audioResources, saving, error, onSelect, onChange, onDelete, onSave, onCancel, onExportPage, onExportAll }: Props) {
   const selected = items.find(item => item.id === selectedId)
   const sorted = [...items].sort((left, right) => left.order - right.order)
   return <aside className="hotspot-editor" aria-label="点读热区标注">
@@ -28,6 +29,7 @@ export default function HotspotEditor({ pageNumber, items, selectedId, audioReso
       <button aria-label="关闭标注" title="关闭" onClick={onCancel}><X size={17}/></button>
     </header>
     <p className="hotspot-editor-hint">在书页上按住拖动，画出一个新的点读区域。</p>
+    {error && <p className="hotspot-editor-error" role="alert">{error}</p>}
     <div className="hotspot-editor-list">
       {!sorted.length && <p className="hotspot-editor-empty">本页还没有热区。先在书页上画一个矩形。</p>}
       {sorted.map(item => {

@@ -2497,6 +2497,7 @@
 .hotspot-editor-head h2 { margin-top: 2px; font-family: var(--font-display); font-size: 16px; }
 .hotspot-editor-head button { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); display: grid; place-items: center; }
 .hotspot-editor-hint { padding: 8px 13px 0; color: var(--muted); font-size: 9px; line-height: 1.6; }
+.hotspot-editor-error { padding: 6px 13px 0; color: #A64E36; font-size: 9px; line-height: 1.6; }
 .hotspot-editor-list { flex: none; max-height: 142px; overflow: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
 .hotspot-editor-list button { min-height: 36px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); text-align: left; display: flex; flex-direction: column; gap: 1px; }
 .hotspot-editor-list button.is-active { border-color: var(--green); background: var(--green-soft); }

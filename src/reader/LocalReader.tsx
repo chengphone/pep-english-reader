@@ -73,7 +73,9 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
   const teacher = useTeacherMode()
   const [size, setSize] = useState({ width: 1000, height: 700 }), [fit, setFit] = useState<PageFit>('page'), [zoom, setZoom] = useState(1), [regions, setRegions] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
-  const [hotspotEditing, setHotspotEditing] = useState(false), [draftItems, setDraftItems] = useState<ReaderItem[]>([]), [editorSelectedId, setEditorSelectedId] = useState<string>(), [savingItems, setSavingItems] = useState(false)
+  const [hotspotEditing, setHotspotEditing] = useState(false), [draftItems, setDraftItems] = useState<ReaderItem[]>([]), [editorSelectedId, setEditorSelectedId] = useState<string>(), [savingItems, setSavingItems] = useState(false), [hotspotError, setHotspotError] = useState('')
+  // 草稿属于开始编辑的那一页；翻页后编辑器还开着时，保存会把上一页的热区写进新页。
+  const hotspotPage = useRef<number | undefined>(undefined)
   const [editing, setEditing] = useState(false), [draft, setDraft] = useState(''), [saving, setSaving] = useState(false), [saveError, setSaveError] = useState('')
   const learning = useLearningState()
   const page = book.manifest.pages[pageIndex], count = book.manifest.pages.length
@@ -166,6 +168,10 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
   useEffect(() => {
     if (!hasLearning && narrow()) setPanelOpen(false)
   }, [pageIndex, hasLearning])
+  useEffect(() => {
+    // 页码变化时结束热区编辑：继续保存会把上一页的草稿写进新页。
+    if (hotspotEditing && hotspotPage.current !== page?.page) cancelHotspots()
+  }, [page, hotspotEditing])
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       const target = event.target
@@ -314,15 +320,19 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
     playback.stop()
     setDraftItems(page.items.map(item => ({ ...item, rects: item.rects.map(rect => [...rect]) })))
     setEditorSelectedId(page.items[0]?.id)
+    setHotspotError('')
+    hotspotPage.current = page.page
     setHotspotEditing(true)
     setFocusMode(false)
     setRegions(true)
     setVideo(null)
   }
   function cancelHotspots() {
+    hotspotPage.current = undefined
     setHotspotEditing(false)
     setDraftItems([])
     setEditorSelectedId(undefined)
+    setHotspotError('')
   }
   function createHotspot(rect: [number, number, number, number]) {
     if (!page) return
@@ -352,12 +362,23 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
   }
   async function saveHotspots() {
     if (!page || savingItems) return
+    // 即使翻页后编辑器还来不及关闭，也不能把草稿写进另一页。
+    if (hotspotPage.current !== page.page) {
+      cancelHotspots()
+      return
+    }
     setSavingItems(true)
+    setHotspotError('')
     try {
       // 手填的区间先按播放规则清理，清单里不留下负数或起点大于终点的数据。
       await onSaveItems(page.page, draftItems.map(sanitizeAudioRange))
+      hotspotPage.current = undefined
       setHotspotEditing(false)
       setDraftItems([])
+    } catch {
+      // 本机教材写入 IndexedDB 可能因配额或隐私模式被拒绝；保持编辑器打开，
+      // 显示错误让用户重试，而不是留下一个没有反馈的未处理 Promise。
+      setHotspotError('保存失败，请检查本机存储空间后重试。')
     } finally {
       setSavingItems(false)
     }
@@ -509,6 +530,7 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
           selectedId={editorSelectedId}
           audioResources={pageAudios}
           saving={savingItems}
+          error={hotspotError}
           onSelect={item => setEditorSelectedId(item.id)}
           onChange={changeHotspot}
           onDelete={deleteHotspot}
