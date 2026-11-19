@@ -15,6 +15,7 @@ import TeacherModeDialog from './TeacherModeDialog'
 import { setTeacherMode, useTeacherMode } from './adminMode'
 import { sanitizeAudioRange } from './audioRange'
 import { activeTocIndex, buildBookToc, pageIndexForPageNumber } from './tocEntries'
+import { createCustomHotspotId } from './hotspotIds'
 import { preloadAudio, usePageAudio } from './usePageAudio'
 import { useReadingFullscreen } from './useReadingFullscreen'
 import { useStudyTimer } from './useStudyTimer'
@@ -76,6 +77,7 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
   const [hotspotEditing, setHotspotEditing] = useState(false), [draftItems, setDraftItems] = useState<ReaderItem[]>([]), [editorSelectedId, setEditorSelectedId] = useState<string>(), [savingItems, setSavingItems] = useState(false), [hotspotError, setHotspotError] = useState('')
   // 草稿属于开始编辑的那一页；翻页后编辑器还开着时，保存会把上一页的热区写进新页。
   const hotspotPage = useRef<number | undefined>(undefined)
+  const customHotspotSequence = useRef(0)
   const [editing, setEditing] = useState(false), [draft, setDraft] = useState(''), [saving, setSaving] = useState(false), [saveError, setSaveError] = useState('')
   const learning = useLearningState()
   const page = book.manifest.pages[pageIndex], count = book.manifest.pages.length
@@ -322,6 +324,7 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
     setEditorSelectedId(page.items[0]?.id)
     setHotspotError('')
     hotspotPage.current = page.page
+    customHotspotSequence.current = 0
     setHotspotEditing(true)
     setFocusMode(false)
     setRegions(true)
@@ -338,7 +341,7 @@ export default function LocalReader({ book, pageIndex, imageSrc, selected, trans
     if (!page) return
     const order = draftItems.reduce((max, item) => Math.max(max, item.order), 0) + 1
     const item: ReaderItem = {
-      id: `p${String(page.page).padStart(3, '0')}_custom_${Date.now()}`,
+      id: createCustomHotspotId(page.page, new Set(draftItems.map(row => row.id)), Date.now(), customHotspotSequence.current++),
       text: '新词条',
       translation: '',
       order,

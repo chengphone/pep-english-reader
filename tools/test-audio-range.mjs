@@ -116,6 +116,24 @@ assert.throws(()=>normalizeReaderManifest({...oldManifest,pages:[{...oldManifest
  assert.equal(normalizeReaderManifest({pages:[{page:1,items:'nope'}]}).pages[0].items,'nope')
 }
 
+// 重复热区 id 会让同名词条被一起修改或删除；归一化后全书身份必须唯一，
+// 并避开清单中已有的后缀 id。
+{
+ const dirty={pages:[
+  {page:1,items:[
+   {id:'same',text:'apple',rects:[]},
+   {id:'same',text:'book',rects:[]},
+   {id:'same~2',text:'cat',rects:[]},
+  ]},
+  {page:2,items:[{id:'same',text:'dog',rects:[]}]},
+ ]}
+ const items=normalizeReaderManifest(dirty).pages.flatMap(page=>page.items)
+ assert.deepEqual(items.map(item=>item.id),['same','same~3','same~2','same~4'])
+ assert.equal(new Set(items.map(item=>item.id)).size,items.length)
+ const changed=items.map(item=>item.id==='same~3'?{...item,text:'changed'}:item)
+ assert.deepEqual(changed.map(item=>item.text),['apple','changed','cat','dog'])
+}
+
 // 用户 ZIP 的标题、条目文本和页面资源会直接进入渲染；坏值必须在这里净化。
 {
  const dirty={schemaVersion:1,bookId:'b',title:123,publisherId:'pep',pages:[{page:1,image:'pages/1.svg',resources:{nope:true},items:[

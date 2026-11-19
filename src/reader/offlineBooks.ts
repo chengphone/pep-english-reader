@@ -55,8 +55,9 @@ function readAll(): Record<string, OfflineMeta> {
 function writeAll(value: Record<string, OfflineMeta>) {
   try {
     localStorage.setItem(META_KEY, JSON.stringify(value))
+    return true
   } catch {
-    // 存储配额不足时至少让当前会话知道哪些书已经缓存。
+    return false
   }
 }
 
@@ -162,7 +163,7 @@ export async function cacheBook(
     bytes,
     urls: [...new Set([...(previous[book.id]?.urls ?? []), ...cachedUrls])],
   }
-  writeAll({ ...previous, [book.id]: meta })
+  if (!writeAll({ ...previous, [book.id]: meta })) throw new Error('离线记录无法保存，请检查浏览器存储权限后重试。')
   return { meta, failures }
 }
 
@@ -175,11 +176,12 @@ export async function removeBookCache(bookId: string) {
   const referencedByOtherBooks = new Set(Object.entries(all)
     .filter(([id]) => id !== bookId)
     .flatMap(([, other]) => other.urls))
+  // 删除失败时保留元数据，用户可以重试；部分 URL 已删也没关系，重试删除不存在的项是安全的。
   await Promise.all(meta.urls
     .filter(url => !referencedByOtherBooks.has(url))
-    .map(url => cache.delete(url).catch(() => false)))
+    .map(url => cache.delete(url)))
   delete all[bookId]
-  writeAll(all)
+  if (!writeAll(all)) throw new Error('离线记录无法更新，请稍后重试。')
 }
 
 export async function estimateStorage() {

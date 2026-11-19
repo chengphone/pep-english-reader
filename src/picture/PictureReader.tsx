@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Download, Headphones, Info, Maximize2, Mic, Minimize2, PanelRightClose, PanelRightOpen, Pause, Play, Repeat, Square, Trash2, Volume2 } from 'lucide-react'
 import './PictureReader.css'
 import type { PictureBook, PictureCatalogEntry, PictureMode, PictureSentence } from '../pictureBooks'
@@ -8,6 +8,7 @@ import { deleteRecording, latestRecording, readRecording, saveRecording, type Re
 import { checkPictureOffline, savePictureOffline, type PictureOfflineState } from './offlinePicture'
 import { locateWord } from './wordLocator'
 import { zoomScrollTarget } from './zoomScroll'
+import { releasePictureAudio } from './audioPlayback'
 import { contentBoxFromPixels, type CropBox } from './trimMargins'
 
 const MODE_INFO: Record<PictureMode, { label: string; hint: string; detail: string }> = {
@@ -157,6 +158,15 @@ export default function PictureReader({
   const cropMeta = page ? (pageCrop?.src === page.image ? pageCrop : cropCache.get(page.image)) : undefined
   const crop = cropMeta?.box
   const selected = page?.sentences.find(sentence => sentence.id === selectedId) ?? null
+  const recordingTargetKey = book && selected ? `${profile}:${book.id}:${selected.id}` : ''
+  const recordingTargetRef = useRef(recordingTargetKey)
+  const recordingMetaRef = useRef(recordingMeta)
+  const recordingUrlRef = useRef(recordingUrl)
+  useLayoutEffect(() => {
+    recordingTargetRef.current = recordingTargetKey
+    recordingMetaRef.current = recordingMeta
+    recordingUrlRef.current = recordingUrl
+  }, [recordingTargetKey, recordingMeta, recordingUrl])
   const lastPage = (book?.manifest.pages.length ?? 1) - 1
   const [completed, setCompleted] = useState(false)
   const vocabulary = book?.manifest.vocabulary ?? []
@@ -234,6 +244,11 @@ export default function PictureReader({
     if (!book) { setCompleted(false); return }
     setCompleted(readPictureProgress(book.id, profile)?.completedPages.includes(pageIndex) ?? false)
   }, [book?.id, pageIndex, profile, completionTick])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    return () => releasePictureAudio(audio)
+  }, [book?.id, book?.manifest.audio])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -486,12 +501,26 @@ export default function PictureReader({
     }
   }
 
-  function removeRecording() {
-    if (!recordingMeta) return
-    void deleteRecording(recordingMeta.id).catch(() => {})
-    setRecordingMeta(null)
-    setRecordingUrl('')
-    setRecordingVersion(value => value + 1)
+  async function removeRecording() {
+    const meta = recordingMeta
+    if (!meta) return
+    const targetKey = recordingTargetKey
+    setRecordError('')
+    try {
+      await deleteRecording(meta.id)
+      if (!mountedRef.current || recordingTargetRef.current !== targetKey || recordingMetaRef.current?.id !== meta.id) return
+      const url = recordingUrlRef.current
+      if (url) URL.revokeObjectURL(url)
+      recordingUrlRef.current = ''
+      recordingMetaRef.current = null
+      setRecordingMeta(null)
+      setRecordingUrl('')
+      setRecordingVersion(value => value + 1)
+    } catch {
+      if (mountedRef.current && recordingTargetRef.current === targetKey && recordingMetaRef.current?.id === meta.id) {
+        setRecordError('录音删除失败，请检查本机存储后重试。')
+      }
+    }
   }
 
   async function saveOffline() {

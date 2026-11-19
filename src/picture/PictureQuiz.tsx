@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, BookOpen, Check, RotateCcw, Sparkles, X } from '
 import './PictureQuiz.css'
 import type { PictureBook, PictureCatalogEntry, PictureQuestion } from '../pictureBooks'
 import { episodeLabel, loadPictureBook, pictureArt, questionsFor } from '../pictureBooks'
+import { pictureQuizAnswer } from './quizState'
 
 type QuizMode = 'comprehension' | 'vocabulary'
 
@@ -39,10 +40,10 @@ export default function PictureQuiz({
   const actualMode: QuizMode = mode === 'comprehension' && book?.manifest.comprehension?.length ? 'comprehension' : 'vocabulary'
   const questions = useMemo<PictureQuestion[]>(() => book ? questionsFor(book.manifest, actualMode) : [], [book, actualMode])
   const question = questions[index]
-  const answer = question ? answers[question.id] : undefined
+  const answer = question ? pictureQuizAnswer(answers, question.id) : undefined
   const answered = answer !== undefined
   const correct = question && answer === question.answer
-  const score = questions.reduce((sum, row) => sum + (answers[row.id] === row.answer ? 1 : 0), 0)
+  const score = questions.reduce((sum, row) => sum + (pictureQuizAnswer(answers, row.id) === row.answer ? 1 : 0), 0)
 
   function choose(option: number) {
     if (!question || answered) return
@@ -110,7 +111,7 @@ export default function PictureQuiz({
       {questions.length > 0 && !finished && question && <section className="pquiz-card" aria-labelledby="pquiz-question">
         <header className="pquiz-progress">
           <span>第 {index + 1} / {questions.length} 题</span>
-          <div aria-hidden="true">{questions.map((row, rowIndex) => <i key={row.id} className={rowIndex < index || answers[row.id] !== undefined ? 'is-done' : rowIndex === index ? 'is-current' : ''}/>)}</div>
+          <div aria-hidden="true">{questions.map((row, rowIndex) => <i key={row.id} className={rowIndex < index || pictureQuizAnswer(answers, row.id) !== undefined ? 'is-done' : rowIndex === index ? 'is-current' : ''}/>)}</div>
         </header>
         <h2 id="pquiz-question">{question.prompt}</h2>
         <div className="pquiz-options">

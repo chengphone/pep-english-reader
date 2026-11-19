@@ -10,6 +10,25 @@ export type BookTocEntry = {
   group?: string
 }
 
+export type BookTocRow = { entry: BookTocEntry; index: number }
+export type BookTocGroup = { key: string; title?: string; rows: BookTocRow[] }
+
+export function groupBookTocRows(rows: BookTocRow[]): BookTocGroup[] {
+  const groups: BookTocGroup[] = []
+  const byTitle = new Map<string | undefined, BookTocGroup>()
+  for (const row of rows) {
+    const title = row.entry.group || undefined
+    let group = byTitle.get(title)
+    if (!group) {
+      group = title ? { key: `named:${title}`, title, rows: [] } : { key: 'ungrouped', rows: [] }
+      byTitle.set(title, group)
+      groups.push(group)
+    }
+    group.rows.push(row)
+  }
+  return groups
+}
+
 const MAX_TITLE = 120
 // 资源标题只是播放器分组名，不适合当章节名；没有 Lesson 编号时不要把它们塞进目录。
 const GENERIC_RESOURCE_TITLES = new Set([

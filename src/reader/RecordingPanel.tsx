@@ -77,6 +77,7 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
   const timer = useRef<number | undefined>(undefined)
   const audio = useRef<HTMLAudioElement | null>(null)
   const audioUrl = useRef('')
+  const playbackRequest = useRef(0)
   const mounted = useRef(true)
   // 录音开始后锁定目标词和资料归属，翻页或点选其他词时停止本次录音，
   // 不能把旧录音保存到新词名下。
@@ -94,6 +95,7 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
     return () => {
       mounted.current = false
       startRequest.current++
+      playbackRequest.current++
       window.clearInterval(timer.current)
       stream.current?.getTracks().forEach(track => track.stop())
       if (recorder.current && recorder.current.state !== 'inactive') recorder.current.stop()
@@ -107,6 +109,7 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
   // 并让仍在等待麦克风权限的启动请求失效。
   useEffect(() => {
     startRequest.current++
+    stopAudio()
     if (status === 'recording') stop()
     // 麦克风权限弹窗还没返回时换了目标词：这次请求已经作废，恢复成可再次点击。
     else if (status === 'starting') setStatus('idle')
@@ -124,13 +127,18 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
     setError('')
   }, [profile, bookId, target?.id])
 
-  function stopAudio() {
+  function releaseAudio() {
     audio.current?.pause()
     audio.current = null
     if (audioUrl.current) {
       URL.revokeObjectURL(audioUrl.current)
       audioUrl.current = ''
     }
+  }
+
+  function stopAudio() {
+    playbackRequest.current++
+    releaseAudio()
     setPlaying(false)
   }
 
@@ -276,22 +284,30 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
       stopAudio()
       return
     }
+    const requestId = ++playbackRequest.current
+    const targetKey = takeKey
+    const recordingId = meta.id
+    const isCurrent = () => mounted.current && requestId === playbackRequest.current && takeKeyRef.current === targetKey
     try {
-      const blob = await readRecording(meta.id)
+      const blob = await readRecording(recordingId)
+      // IndexedDB 读取期间可能已切词或卸载面板；旧请求不能再启动播放器。
+      if (!isCurrent()) return
       if (!blob) {
         setError('找不到这段录音，请重新录制。')
         return
       }
-      stopAudio()
+      releaseAudio()
       const url = URL.createObjectURL(blob)
       audioUrl.current = url
       const player = new Audio(url)
       audio.current = player
-      player.onended = () => setPlaying(false)
-      player.onerror = () => setPlaying(false)
+      player.onended = () => { if (isCurrent() && audio.current === player) setPlaying(false) }
+      player.onerror = () => { if (isCurrent() && audio.current === player) setPlaying(false) }
       setPlaying(true)
       await player.play()
+      if (!isCurrent()) player.pause()
     } catch {
+      if (!isCurrent()) return
       setPlaying(false)
       setError('录音回放失败。')
     }
@@ -299,11 +315,18 @@ export default function RecordingPanel({ profile, bookId, items, selected, onPla
 
   async function removeLatest() {
     if (!meta || !target) return
+    const targetKey = takeKey
     stopAudio()
-    await deleteRecording(meta.id)
-    const next = latestRecording(profile, bookId, target.id)
-    setMeta(next)
-    setCount(listRecordings(profile, bookId, target.id).length)
+    setError('')
+    try {
+      await deleteRecording(meta.id)
+      if (!mounted.current || takeKeyRef.current !== targetKey) return
+      const next = latestRecording(profile, bookId, target.id)
+      setMeta(next)
+      setCount(listRecordings(profile, bookId, target.id).length)
+    } catch {
+      if (mounted.current && takeKeyRef.current === targetKey) setError('录音删除失败，请检查本机存储后重试。')
+    }
   }
 
   function toggleSpeech() {

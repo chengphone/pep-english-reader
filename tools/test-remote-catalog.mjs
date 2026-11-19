@@ -230,6 +230,29 @@ test('an explicitly cleared remote page keeps its empty hotspot override', async
   assert.deepEqual(restored.manifest.pages[0].items.map(item => item.id), ['only'])
 })
 
+test('remote hotspot overrides are normalized against the whole book', async () => {
+  installBase()
+  assert.equal(writeRemotePageItems('demo', 1, [
+    { id: 'same', text: 'first', order: 1, rects: [] },
+    { id: 'same', text: 'second', order: 2, rects: [] },
+    { id: 'same~2', text: 'third', order: 3, rects: [] },
+  ]), true)
+  globalThis.fetch = async () => jsonResponse({
+    schemaVersion: 1,
+    bookId: 'demo',
+    title: 'Demo',
+    publisherId: 'test',
+    pages: [
+      { page: 1, image: 'one.jpg', items: [{ id: 'base', text: 'base', rects: [] }] },
+      { page: 2, image: 'two.jpg', items: [{ id: 'same~2', text: 'other page', rects: [] }] },
+    ],
+  })
+  const book = await loadRemoteBook({ id: 'demo', title: 'Demo', manifest: 'https://example.test/book.json' })
+  const ids = book.manifest.pages.flatMap(page => page.items.map(item => item.id))
+  assert.equal(new Set(ids).size, ids.length)
+  assert.deepEqual(ids, ['same', 'same~3', 'same~2', 'same~2~2'])
+})
+
 test('remote storage writes report when localStorage rejects them', () => {
   const store = installBase()
   assert.equal(writeRemoteTranslation('book', 'item', '你好'), true)

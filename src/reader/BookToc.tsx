@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, LocateFixed, Search, X } from 'lucide-react'
-import { activeTocIndex, type BookTocEntry } from './tocEntries'
+import { activeTocIndex, groupBookTocRows, type BookTocEntry } from './tocEntries'
 
 type Props = {
   entries: BookTocEntry[]
@@ -8,26 +8,6 @@ type Props = {
   currentPage: number
   onSelect: (page: number) => void
   onClose: () => void
-}
-
-type TocRow = { entry: BookTocEntry; index: number }
-type TocGroup = { title?: string; rows: TocRow[] }
-
-function groupRows(rows: TocRow[]): TocGroup[] {
-  const groups: TocGroup[] = []
-  const byTitle = new Map<string, TocGroup>()
-  for (const row of rows) {
-    const title = row.entry.group
-    const key = title ?? '__ungrouped'
-    let group = byTitle.get(key)
-    if (!group) {
-      group = title ? { title, rows: [] } : { rows: [] }
-      byTitle.set(key, group)
-      groups.push(group)
-    }
-    group.rows.push(row)
-  }
-  return groups
 }
 
 // 目录按主题分组，并提供搜索和“回到当前”定位。
@@ -51,7 +31,7 @@ export default function BookToc({ entries, bookTitle, currentPage, onSelect, onC
           String(entry.label) === needle
       })
   }, [entries, query])
-  const groups = useMemo(() => groupRows(rows), [rows])
+  const groups = useMemo(() => groupBookTocRows(rows), [rows])
   const groupCount = new Set(entries.map(entry => entry.group).filter(Boolean)).size
 
   // 翻到新章节时自动展开它所在的主题；用户手动折起其他组不受影响。
@@ -136,9 +116,8 @@ export default function BookToc({ entries, bookTitle, currentPage, onSelect, onC
         <small>可以搜索英文主题、章节名或书上页码。</small>
       </div>}
       {groups.map(group => {
-        const key = group.title ?? '__ungrouped'
         const isCollapsed = Boolean(group.title && collapsed.has(group.title) && !query.trim())
-        return <section className="book-toc-group" key={key}>
+        return <section className="book-toc-group" key={group.key}>
           {group.title && <button
             type="button"
             className="book-toc-group-head"

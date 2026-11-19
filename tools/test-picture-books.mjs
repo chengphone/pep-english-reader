@@ -16,6 +16,7 @@ import {
 } from '../src/pictureBooks.ts'
 import { PICTURE_ARCS, arcForEntry, arcForEpisode, groupPictureEntries } from '../src/pictureArcs.ts'
 import { groupPictureSeries, nextPictureInSeries } from '../src/pictureSeries.ts'
+import { pictureQuizAnswer } from '../src/picture/quizState.ts'
 import { slimPictureCatalogRows } from './pictureCatalog.mjs'
 
 const manifest = {
@@ -60,6 +61,18 @@ test('comprehension questions are used verbatim; missing ones fall back to vocab
   assert.deepEqual(questionsFor(manifest, 'comprehension'), manifest.comprehension)
   assert.equal(questionsFor({ ...manifest, comprehension: undefined }, 'comprehension').length, 5)
   assert.equal(hasComprehension({ ...manifest, comprehension: [] }), false)
+})
+
+test('prototype-like question ids are unanswered until an own answer exists', () => {
+  const answers = {}
+  for (const id of ['constructor', 'toString', '__proto__']) {
+    assert.equal(pictureQuizAnswer(answers, id), undefined, `${id} must not read from Object.prototype`)
+  }
+  const chosen = { ...answers, ['constructor']: 2, ['__proto__']: 1 }
+  assert.equal(pictureQuizAnswer(chosen, 'constructor'), 2)
+  assert.equal(pictureQuizAnswer(chosen, '__proto__'), 1)
+  assert.equal(pictureQuizAnswer(chosen, 'toString'), undefined)
+  assert.equal(Object.getPrototypeOf(chosen), Object.prototype)
 })
 
 test('Journey to the West arcs cover every episode exactly once', () => {

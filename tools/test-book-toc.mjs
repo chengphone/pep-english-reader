@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { activeTocIndex, buildBookToc, pageIndexForPageNumber } from '../src/reader/tocEntries.ts'
+import { activeTocIndex, buildBookToc, groupBookTocRows, pageIndexForPageNumber } from '../src/reader/tocEntries.ts'
 
 const page = (number, printedPage, items = [], resources) => ({ page: number, printedPage, image: `pages/${number}.jpg`, items, ...(resources ? { resources } : {}) })
 const item = (id, text) => ({ id, text, order: 0, rects: [] })
@@ -21,6 +21,18 @@ assert.deepEqual(picture.map(entry => [entry.title, entry.page, entry.label, ent
 assert.equal(activeTocIndex(picture, 13), 2)
 assert.equal(activeTocIndex(picture, 12), 1)
 assert.equal(activeTocIndex(picture, 14), 2)
+// 任意主题名都不能与“未分组”内部标记冲突。
+const tocRow = (title, group, index) => ({ entry: { title, page: index + 1, level: 1, label: index + 1, ...(group === undefined ? {} : { group }) }, index })
+const collisionGroups = groupBookTocRows([
+  tocRow('No group', undefined, 0),
+  tocRow('Named group', '__ungrouped', 1),
+  tocRow('Another member', '__ungrouped', 2),
+])
+assert.deepEqual(collisionGroups.map(group => [group.title, group.rows.map(row => row.index)]), [
+  [undefined, [0]],
+  ['__ungrouped', [1, 2]],
+])
+assert.equal(new Set(collisionGroups.map(group => group.key)).size, collisionGroups.length)
 // 目录跳转必须把物理页码映射回数组下标，不能直接用 page - 1。
 assert.equal(pageIndexForPageNumber(picture.map(entry => ({ page: entry.page })), 1), 0)
 assert.equal(pageIndexForPageNumber([{ page: 1 }, { page: 10 }, { page: 13 }], 10), 1)

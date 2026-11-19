@@ -30,6 +30,14 @@ export function normalizeReaderManifest<T>(value:T):T{
  // 标题会进入 document.title、阅读器顶栏和书架；数字、对象或数组会在 .trim()
  // 或 JSX 渲染时抛错。删除坏标题，由导入流程回退到文件名。
  if(typeof value.title!=='string')delete value.title
+ // item.id 同时作为 React key、热区编辑选择键和学习记录身份；同一本教材重复时，
+ // 修改或删除一个热区会误伤所有同 id 条目。保留首个 id，给后续重复项补唯一后缀。
+ const reservedItemIds=new Set<string>()
+ for(const page of value.pages){
+  if(!object(page)||!Array.isArray(page.items))continue
+  for(const item of page.items)if(object(item)&&typeof item.id==='string'&&item.id.trim()&&typeof item.text==='string')reservedItemIds.add(item.id.trim())
+ }
+ const seenItemIds=new Set<string>()
  for(const page of value.pages){
   if(!object(page))continue
   // 书上页码会直接显示在阅读器顶栏和“第 N 页”提示里；对象或数组会让 JSX
@@ -54,7 +62,13 @@ export function normalizeReaderManifest<T>(value:T):T{
   // id 是 React key 和学习记录键，text 会成为 React 子节点和朗读文本；坏值都丢弃。
   page.items=page.items.filter((item:unknown)=>object(item)&&typeof item.id==='string'&&!!item.id.trim()&&typeof item.text==='string')
   for(const item of page.items){
-   item.id=item.id.trim()
+   const baseId=item.id.trim()
+   if(seenItemIds.has(baseId)){
+    let suffix=2,candidate=`${baseId}~${suffix}`
+    while(seenItemIds.has(candidate)||reservedItemIds.has(candidate))candidate=`${baseId}~${++suffix}`
+    item.id=candidate
+   }else item.id=baseId
+   seenItemIds.add(item.id)
    item.rects=Array.isArray(item.rects)?item.rects.filter(isRect):[]
    // 释义和点读音源会直接进入 React 子节点与 Audio 构造器；对象、数组或数字
    // 会让单词列表和复习卡在渲染时抛错。非字符串一律按未填写处理。

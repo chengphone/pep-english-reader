@@ -90,14 +90,17 @@ test('a stalled offline resource times out and the remaining queue finishes part
   const originalWindow = globalThis.window
   const originalCaches = globalThis.caches
   const originalLocation = globalThis.location
+  const originalLocalStorage = globalThis.localStorage
   const originalFetch = globalThis.fetch
   const originalSetTimeout = globalThis.setTimeout
+  const metadata = new Map()
   const requests = []
   const saved = new Map()
   const cache = { match: async () => undefined, put: async (url, response) => { saved.set(url, response.clone()) } }
   globalThis.location = { origin: 'https://cdn.example.com' }
   globalThis.caches = { open: async () => cache }
   globalThis.window = { caches: globalThis.caches }
+  globalThis.localStorage = { getItem: key => metadata.get(key) ?? null, setItem: (key, value) => metadata.set(key, String(value)) }
   globalThis.setTimeout = (callback, ms, ...args) => originalSetTimeout(callback, Math.min(ms, 30), ...args)
   globalThis.fetch = (url, init = {}) => {
     requests.push({ url: String(url), mode: init.mode })
@@ -125,6 +128,8 @@ test('a stalled offline resource times out and the remaining queue finishes part
     else globalThis.caches = originalCaches
     if (originalLocation === undefined) delete globalThis.location
     else globalThis.location = originalLocation
+    if (originalLocalStorage === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = originalLocalStorage
     globalThis.fetch = originalFetch
     globalThis.setTimeout = originalSetTimeout
   }
@@ -199,6 +204,83 @@ test('removing one book preserves cache URLs referenced by another book', async 
     assert.equal(saved.has('https://example.test/first-only.jpg'), false)
     assert.deepEqual(offlineStatus('second')?.urls, ['https://example.test/shared.mp3'])
     assert.equal(offlineStatus('first'), undefined)
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window
+    else globalThis.window = originalWindow
+    if (originalCaches === undefined) delete globalThis.caches
+    else globalThis.caches = originalCaches
+    if (originalLocalStorage === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = originalLocalStorage
+  }
+})
+
+test('a cache deletion error keeps offline metadata available for retry', async () => {
+  const originalWindow = globalThis.window
+  const originalCaches = globalThis.caches
+  const originalLocalStorage = globalThis.localStorage
+  const url = 'https://example.test/kept.jpg'
+  const store = new Map([['pep:offline-books:v1', JSON.stringify({ demo: { title: 'Demo', urls: [url] } })]])
+  globalThis.caches = { open: async () => ({ delete: async () => { throw new Error('storage unavailable') } }) }
+  globalThis.window = { caches: globalThis.caches }
+  globalThis.localStorage = { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)) }
+  try {
+    await assert.rejects(removeBookCache('demo'), /storage unavailable/)
+    assert.deepEqual(offlineStatus('demo')?.urls, [url])
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window
+    else globalThis.window = originalWindow
+    if (originalCaches === undefined) delete globalThis.caches
+    else globalThis.caches = originalCaches
+    if (originalLocalStorage === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = originalLocalStorage
+  }
+})
+
+test('saving cached responses without writable metadata reports failure', async () => {
+  const originalWindow = globalThis.window
+  const originalCaches = globalThis.caches
+  const originalLocation = globalThis.location
+  const originalLocalStorage = globalThis.localStorage
+  const originalFetch = globalThis.fetch
+  const saved = new Map()
+  const cache = { match: async () => undefined, put: async (url, response) => { saved.set(String(url), response.clone()) } }
+  globalThis.location = { origin: 'https://example.test' }
+  globalThis.caches = { open: async () => cache }
+  globalThis.window = { caches: globalThis.caches }
+  globalThis.localStorage = { getItem: () => null, setItem: () => { throw new Error('storage disabled') } }
+  globalThis.fetch = async () => new Response('cached')
+  try {
+    const book = { id: 'demo', remote: true, manifestUrl: 'https://example.test/book.json', assets: {}, manifest: { title: 'Demo', pages: [] } }
+    await assert.rejects(cacheBook(book, () => {}), /离线记录无法保存/)
+    assert.equal(saved.size, 1)
+    assert.equal(offlineStatus('demo'), undefined)
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window
+    else globalThis.window = originalWindow
+    if (originalCaches === undefined) delete globalThis.caches
+    else globalThis.caches = originalCaches
+    if (originalLocation === undefined) delete globalThis.location
+    else globalThis.location = originalLocation
+    if (originalLocalStorage === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = originalLocalStorage
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('removing cached responses without writable metadata reports failure', async () => {
+  const originalWindow = globalThis.window
+  const originalCaches = globalThis.caches
+  const originalLocalStorage = globalThis.localStorage
+  const url = 'https://example.test/remove.jpg'
+  const saved = new Set([url])
+  const store = new Map([['pep:offline-books:v1', JSON.stringify({ demo: { title: 'Demo', urls: [url] } })]])
+  globalThis.caches = { open: async () => ({ delete: async value => saved.delete(String(value)) }) }
+  globalThis.window = { caches: globalThis.caches }
+  globalThis.localStorage = { getItem: key => store.get(key) ?? null, setItem: () => { throw new Error('storage disabled') } }
+  try {
+    await assert.rejects(removeBookCache('demo'), /离线记录无法更新/)
+    assert.equal(saved.has(url), false)
+    assert.deepEqual(offlineStatus('demo')?.urls, [url])
   } finally {
     if (originalWindow === undefined) delete globalThis.window
     else globalThis.window = originalWindow

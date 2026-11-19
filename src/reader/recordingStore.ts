@@ -6,6 +6,24 @@ const DB_NAME = 'pep-reader-learning-v1'
 const STORE = 'clips'
 const META_KEY = 'pep:recordings:v1'
 const MAX_CLIPS = 300
+let recordingIdSequence = 0
+
+function recordingId(profile: ProfileId, bookId: string, itemId: string, createdAt: number): string {
+  const prefix = `${profile}:${bookId}:${itemId}:${createdAt}`
+  try {
+    const id = globalThis.crypto?.randomUUID?.()
+    if (id) return `${prefix}:${id}`
+  } catch { /* 某些本地 HTTP 环境不提供 randomUUID */ }
+  recordingIdSequence++
+  let random = ''
+  try {
+    const bytes = new Uint8Array(8)
+    globalThis.crypto?.getRandomValues(bytes)
+    random = [...bytes].map(value => value.toString(16).padStart(2, '0')).join('')
+  } catch { /* 使用普通随机值作为旧环境兜底 */ }
+  if (!random) random = Math.random().toString(36).slice(2)
+  return `${prefix}:${recordingIdSequence.toString(36)}-${random}`
+}
 
 export type RecordingMeta = {
   id: string
@@ -148,7 +166,7 @@ export async function saveRecording(options: {
   blob: Blob
 }): Promise<RecordingMeta> {
   const createdAt = Date.now()
-  const id = `${options.profile}:${options.bookId}:${options.itemId}:${createdAt}`
+  const id = recordingId(options.profile, options.bookId, options.itemId, createdAt)
   await putBlob(id, options.blob)
   const meta: RecordingMeta = {
     id,
@@ -186,6 +204,15 @@ export async function readRecording(id: string): Promise<Blob | null> {
 }
 
 export async function deleteRecording(id: string) {
-  writeMeta(readMeta().filter(row => row.id !== id))
-  await deleteBlob(id).catch(() => {})
+  const blob = await readRecording(id)
+  await deleteBlob(id)
+  if (writeMeta(readMeta().filter(row => row.id !== id))) return
+
+  if (!blob) throw new Error('录音记录无法更新；请检查本机存储后重试。')
+  try {
+    await putBlob(id, blob)
+  } catch {
+    throw new Error('录音记录无法更新，且录音数据恢复失败；请检查本机存储后重试。')
+  }
+  throw new Error('录音记录无法更新，录音数据已恢复；请检查本机存储后重试。')
 }

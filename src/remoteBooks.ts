@@ -180,9 +180,11 @@ export async function loadRemoteBook(entry: RemoteBookEntry): Promise<LocalBook>
     })
   }
   if (!pages.length) throw new Error('在线教材清单缺少有效页面，无法打开。')
+  // 本机热区覆盖项在基础清单归一化之后合并；再次归一化确保覆盖项也遵守全书唯一 ID 等规则。
+  const finalManifest = normalizeReaderManifest({ ...manifest, bookId, title, pages })
   return {
     id: bookId,
-    manifest: { ...manifest, bookId, title, pages },
+    manifest: finalManifest,
     assets: {},
     remote: true,
     manifestUrl: manifestUrl.href,
